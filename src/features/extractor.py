@@ -795,17 +795,18 @@ class FeatureExtractor:
                     elif winner_str == "CT" and "CT" in team_str:
                         round_won = True
                 
-                # Is exit frag? (Last 10 seconds of round OR 1vN situation)
-                round_duration = (round_end_tick - round_start_tick) / TICK_RATE if round_end_tick > round_start_tick else 0
+                # Is exit frag?
+                # Definition: Kills that don't help win - round was LOST and kill was late
+                # NOT exit if round was won (those kills mattered)
                 is_exit = False
-                if round_duration > 0:
-                    time_remaining = round_duration - round_time_seconds
-                    is_exit = time_remaining < 10  # Last 10 seconds
+                round_duration = (round_end_tick - round_start_tick) / TICK_RATE if round_end_tick > round_start_tick else 0
                 
-                # Also exit if it's cleanup (1vN where N > 2)
-                total_alive = alive.get('CT', 0) + alive.get('TERRORIST', 0)
-                if total_alive <= 2:
-                    is_exit = True
+                # Only check exit if round was LOST
+                if not round_won and round_duration > 0:
+                    time_remaining = round_duration - round_time_seconds
+                    # Kill in last 15 seconds of a lost round = exit frag
+                    if time_remaining < 15:
+                        is_exit = True
                 
                 # Check if killer got traded (killed within 3s after this kill)
                 killer_traded = False
