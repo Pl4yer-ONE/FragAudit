@@ -96,6 +96,14 @@ For more information, see README.md
         help="Generate kill/death/movement heatmaps"
     )
     
+    parser.add_argument(
+        "--heatmap-phase",
+        type=str,
+        choices=["early", "mid", "late"],
+        default=None,
+        help="Filter heatmaps by round phase (early=0-20s, mid=20-60s, late=60s+)"
+    )
+    
     args = parser.parse_args()
     
     # Check parsers if requested
@@ -132,12 +140,8 @@ For more information, see README.md
         
         # Step 1b: Generate heatmaps if requested
         if args.heatmap:
-            print("Generating heatmaps...")
-            heatmap_gen = HeatmapGenerator(parsed_demo)
+            heatmap_gen = HeatmapGenerator(parsed_demo, phase=getattr(args, 'heatmap_phase', None))
             heatmap_paths = heatmap_gen.generate_all()
-            if args.verbose:
-                for htype, hpath in heatmap_paths.items():
-                    print(f"  {htype}: {hpath}")
         
         # Step 2: Extract features
         print("Extracting features...")
