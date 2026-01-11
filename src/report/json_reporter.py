@@ -136,7 +136,7 @@ class JsonReporter:
             p.kills_in_won_rounds,
             p.kills_in_lost_rounds,
             p.exit_frags,
-            p.swing_kills,  # Momentum-shifting kills
+            p.swing_score,  # Weighted swing score (deficit-based)
             
             # Round-winning plays
             p.multikills, 

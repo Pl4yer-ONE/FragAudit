@@ -168,7 +168,8 @@ class PlayerFeatures:
     kills_in_won_rounds: int = 0
     kills_in_lost_rounds: int = 0
     exit_frags: int = 0
-    swing_kills: int = 0          # Kills that flip man-advantage (diff_before <= -2, after >= -1)
+    swing_kills: int = 0          # Count of momentum-shifting kills
+    swing_score: float = 0.0      # Weighted swing score (deficit-based)
     opening_kills_won: int = 0    # Opening kills in rounds team won
     opening_kills_lost: int = 0   # Opening kills in rounds team lost
     
@@ -856,9 +857,8 @@ class FeatureExtractor:
                     else:
                         player.opening_kills_lost += 1
                 
-                # SWING KILL DETECTION
+                # SWING KILL DETECTION (deficit-based scoring)
                 # Track kills that flip man-advantage
-                # diff_before <= -2 and diff_after >= -1 = swing kill
                 attacker_team_upper = attacker_team.upper()
                 if "TERRORIST" in attacker_team_upper or attacker_team_upper == "T":
                     my_alive = alive.get('TERRORIST', 0)
@@ -873,6 +873,30 @@ class FeatureExtractor:
                 # Swing kill: losing badly (diff <= -2) to fighting chance (diff >= -1)
                 if diff_before <= -2 and diff_after >= -1:
                     player.swing_kills += 1
+                    
+                    # Deficit-based scoring
+                    # Bigger deficit = bigger reward
+                    if diff_before <= -3:
+                        base_swing = 10.0  # Hero play
+                    else:  # diff_before == -2
+                        base_swing = 8.0
+                    
+                    # Anti-padding: track swings per player per round
+                    # Second swing same round = reduced value
+                    swing_key = f"{attacker_id}_{round_num}"
+                    if not hasattr(self, '_swing_tracker'):
+                        self._swing_tracker = {}
+                    
+                    prev_swings = self._swing_tracker.get(swing_key, 0)
+                    if prev_swings == 0:
+                        swing_value = base_swing
+                    elif prev_swings == 1:
+                        swing_value = 4.0  # Second swing = reduced
+                    else:
+                        swing_value = 2.0  # Third+ = minimal
+                    
+                    self._swing_tracker[swing_key] = prev_swings + 1
+                    player.swing_score += swing_value
                 
                 # Update alive count (victim died)
                 vic_team = str(kill.get(self._get_team_column(kills_df, "victim"), "")) if self._get_team_column(kills_df, "victim") else ""
