@@ -111,6 +111,7 @@ class ReportGenerator:
     ) -> Dict[str, Any]:
         """Generate per-player report."""
         return {
+            "player_name": features.player_name or "",
             "stats": {
                 "kills": features.kills,
                 "deaths": features.deaths,
@@ -207,7 +208,8 @@ class ReportGenerator:
         
         # Per-player sections
         for player_id, player_data in report["players"].items():
-            lines.append(f"## Player: {player_id}")
+            player_name = player_data.get("player_name", "") or player_id
+            lines.append(f"## Player: {player_name}")
             lines.append("")
             
             # Stats table
@@ -276,7 +278,8 @@ class ReportGenerator:
         
         for player_id, player_data in report["players"].items():
             stats = player_data["stats"]
-            print(f"\nPlayer: {player_id}")
+            player_name = player_data.get("player_name", "") or player_id
+            print(f"\nPlayer: {player_name}")
             print(f"  K/D: {stats['kd_ratio']} | HS%: {stats['headshot_percentage']}%")
             
             if player_data["improvement_priority"]:

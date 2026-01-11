@@ -119,12 +119,22 @@ class FeatureExtractor:
         attacker_col = self._get_player_column(kills_df, "attacker")
         victim_col = self._get_player_column(kills_df, "victim")
         
+        # Try to find name columns
+        attacker_name_col = 'attacker_name' if 'attacker_name' in kills_df.columns else None
+        victim_name_col = 'user_name' if 'user_name' in kills_df.columns else None
+        
         if attacker_col:
             for player_id, group in kills_df.groupby(attacker_col):
                 if pd.isna(player_id):
                     continue
                 player = self._ensure_player(str(player_id))
                 player.kills = len(group)
+                
+                # Extract player name from first row
+                if attacker_name_col and not group[attacker_name_col].isna().all():
+                    name = group[attacker_name_col].dropna().iloc[0] if len(group[attacker_name_col].dropna()) > 0 else ""
+                    if name and not player.player_name:
+                        player.player_name = str(name)
                 
                 # Store kill events
                 for _, row in group.iterrows():
@@ -136,6 +146,13 @@ class FeatureExtractor:
                     continue
                 player = self._ensure_player(str(player_id))
                 player.deaths = len(group)
+                
+                # Extract player name from victim if not already set
+                if victim_name_col and not player.player_name:
+                    if not group[victim_name_col].isna().all():
+                        name = group[victim_name_col].dropna().iloc[0] if len(group[victim_name_col].dropna()) > 0 else ""
+                        if name:
+                            player.player_name = str(name)
                 
                 # Store death events
                 for _, row in group.iterrows():
