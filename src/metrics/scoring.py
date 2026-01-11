@@ -197,34 +197,42 @@ class ScoreEngine:
         
         4. Trade Value:
            - Died traded: -1 (team got value, minor penalty)
-           - Died untraded: -6 (pure waste)
+           - Died traded: -0.5 (team got value)
+           - Died untraded: -3 (waste, but not career-ending)
         
-        NO FLOORS. Earn every point.
+        5. Round Contribution Floor:
+           - 5+ kills in won rounds: +10 (winning matters)
+        
+        Allow negative to -20. Final rating handles the rest.
         """
         impact = 0.0
         
         # 1. Kill Value (round-context)
         impact += kills_in_won_rounds * 6.0      # Full value
-        impact += kills_in_lost_rounds * 0.5     # Almost worthless
-        impact -= exit_frags * 5.0               # BRUTAL padding penalty
+        impact += kills_in_lost_rounds * 0.5     # Low value
+        impact -= exit_frags * 0.5               # Discounted, not criminal
         
         # 2. Opening Picks (critical plays)
         impact += opening_kills_won * 12.0       # Round-winning opener
         impact += opening_kills_lost * 2.0       # Failed to convert
-        impact -= entry_deaths * 6.0             # Round-losing
+        impact -= entry_deaths * 3.0             # Bad, but not round-ending
         
-        # 3. Clutches (earned value, no free floors)
+        # 3. Clutches (earned value)
         impact += clutches_1v1 * 15.0
         impact += clutches_1vN * 25.0
         impact += multikills * 5.0
         
-        # 4. Death Value
-        impact -= tradeable_deaths * 1.0         # Died but traded (minor)
-        impact -= untradeable_deaths * 6.0       # Died alone (waste)
+        # 4. Death Value (reduced penalties)
+        impact -= tradeable_deaths * 0.5         # Team got value (minor)
+        impact -= untradeable_deaths * 3.0       # Waste, but reasonable
         
-        # No artificial floor - let rating handle punishment
-        # Just prevent true negatives
-        return int(min(100, max(0, impact)))
+        # 5. Round Contribution Floor
+        # Winning rounds matters more than *how*
+        if kills_in_won_rounds >= 5:
+            impact += 10.0
+        
+        # Allow negative - let final rating clamp
+        return int(min(100, max(-20, impact)))
 
     @staticmethod
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
