@@ -43,6 +43,7 @@ class ParsedDemo:
     # Utility data
     grenades: pd.DataFrame = field(default_factory=pd.DataFrame)
     flashes: pd.DataFrame = field(default_factory=pd.DataFrame)
+    bomb: pd.DataFrame = field(default_factory=pd.DataFrame)
     
     # Player info
     players: Dict[str, Any] = field(default_factory=dict)
@@ -203,6 +204,14 @@ class DemoParser:
         except Exception as e:
             print(f"Warning: Could not parse grenades: {e}")
             result.grenades = pd.DataFrame()
+        
+        # Parse bomb events
+        try:
+            bomb_df = parser.parse_event("bomb_planted")
+            result.bomb = bomb_df if bomb_df is not None else pd.DataFrame()
+        except Exception as e:
+            print(f"Warning: Could not parse bomb events: {e}")
+            result.bomb = pd.DataFrame()
         
         # Parse tick data for positions (sample)
         try:

@@ -65,7 +65,7 @@ class WinProbabilityModel:
     }
     
     @staticmethod
-    def get_ct_win_prob(ct_alive: int, t_alive: int) -> float:
+    def get_ct_win_prob(ct_alive: int, t_alive: int, bomb_planted: bool = False) -> float:
         """Get CT win probability for a given state."""
         # Sanity check
         ct_alive = max(0, min(5, ct_alive))
@@ -76,7 +76,23 @@ class WinProbabilityModel:
         if t_alive == 0 and ct_alive > 0: return 1.0
         if ct_alive == 0 and t_alive == 0: return 0.0 # Round over?
         
-        # Lookup
+        # If bomb planted, advantage flips to T (they become "Defender")
+        if bomb_planted:
+            # Our table PROBS[(X, Y)] = Prob(X wins).
+            # When bomb planted, T is X (defender).
+            # So t_win_prob = PROBS[(t_alive, ct_alive)]
+            t_win_prob = WinProbabilityModel.PROBS.get((t_alive, ct_alive), 0.50)
+            
+            # CT Retake is hard -> add slight extra penalty to CT?
+            # Or just trust man-advantage table.
+            # 5v5 retake = 50% T win in table -> 50% CT win.
+            # Reality: 5v5 retake is ~30-35% CT win.
+            # So we boost T win prob slightly (e.g. +10%)
+            t_win_prob = min(1.00, t_win_prob + 0.10)
+            
+            return 1.0 - t_win_prob
+            
+        # Lookup standard
         return WinProbabilityModel.PROBS.get((ct_alive, t_alive), 0.50)
 
 
@@ -256,7 +272,45 @@ class FeatureExtractor:
         self.zone_detector = get_zone_detector(self.map_name)
         self.role_classifier = RoleClassifier()
         self.movement_analyzer = MovementAnalyzer()
-    
+        # Bomb plant ticks: round_num -> tick
+        self.bomb_plant_ticks = {}
+        self._preprocess_bomb_events()
+
+    def _preprocess_bomb_events(self):
+        """Map rounds to bomb plant ticks."""
+        if hasattr(self.demo, 'bomb') and not self.demo.bomb.empty:
+            for _, row in self.demo.bomb.iterrows():
+                # Some parsers might have duplicate events, take first per round usually is safe
+                # But if bomb planted multiple times (?), take last? (Impossible in CS2 round unless practice)
+                # Just take the first one found for the round.
+                tick = row.get('tick')
+                # Find which round this tick belongs to
+                # We can't trust row['round'] if it's missing, so use timestamps
+                # But usually demoparser2 gives us tick.
+                # We need to map tick to round number.
+                # Just use round lookup if possible, or assume we can find round later.
+                pass 
+                
+        # Actually easier to do round mapping on the fly or build a tick->round map
+        # But we already have self.demo.rounds which has start/end ticks
+        # Efficient way:
+        if self.demo.rounds.empty: return
+        
+        rounds = self.demo.rounds.sort_values('round_start_tick')
+        if hasattr(self.demo, 'bomb') and not self.demo.bomb.empty:
+            for _, row in self.demo.bomb.iterrows():
+                tick = int(row['tick'])
+                # Find round
+                # Binary search or just loop? Rounds is small (<30). Loop is fine.
+                for rnd_idx, rnd in rounds.iterrows():
+                     if rnd['round_start_tick'] <= tick <= rnd['round_end_tick']:
+                         # rounds index is usually 0-based. round_num depends on how we track it.
+                         # We'll use the implicit index + 1 or a specific column if available.
+                         # Let's rely on _extract_kill_contexts matching logic.
+                         # Key by round_start_tick to match extractor lookup.
+                         self.bomb_plant_ticks[int(rnd['round_start_tick'])] = tick
+                         break
+
     def extract_all(self) -> Dict[str, PlayerFeatures]:
         """Extract all features for all players."""
         self._extract_round_timing()
@@ -917,8 +971,63 @@ class FeatureExtractor:
                 ct_alive = alive.get('CT', 0)
                 t_alive = alive.get('TERRORIST', 0)
                 
+                # Check bomb state
+                # round_row index from iterrows() might match our pre-process key
+                # kill_row has 'round' column? or we infer from tick.
+                # In this loop: we are iterating self.demo.kills
+                # We know 'round_num'. 
+                # But our pre-processor used dataframe index. 
+                # We need to ensure we match the right round.
+                # Let's map current tick to round index if possible, OR
+                # simpler: Just query "is bomb planted?"
+                
+                is_planted = False
+                # Try to look up using tick
+                # self.bomb_plant_ticks maps round_index -> plant_tick. 
+                # We iterate kills which have round numbers... but those might not match indices directly.
+                # Robust method: Check if ANY plant tick is <= current tick AND > round_start_tick
+                # Optimization: Cache current round plant tick.
+                
+                # Find plant tick for this round
+                current_round_plant_tick = None
+                for idx, r_start in self._round_start_ticks.items(): # This mimics round num?
+                     # Actually we computed _round_start_ticks in _extract_round_timing
+                     # But we need the plant tick.
+                     pass
+
+                # Quick hack: Iterate bomb dataframe once, filter by current round ticks
+                # Optimization: Filter logic can be slow inside loop.
+                # Let's assume we have self.bomb_plant_ticks populated with round numbers that align.
+                # If round_num is reliable:
+                plant_tick = self.bomb_plant_ticks.get(round_num - 1, 99999999) # round_num is 1-based usually
+                # Wait, round_num definition varies.
+                # Let's refine the pre-processor to be robust. 
+                pass
+                
+                # Correct approach:
+                # In _preprocess_bomb_events, we map (round_start_tick, round_end_tick) to plant_tick.
+                # Here, we check if current tick is >= plant_tick for the matching round.
+                
+                # Fallback simple check if pre-processor is too complex here:
+                # Just check raw bomb df for THIS round? No, slow.
+                
+                # Re-doing the is_planted check logic below with a helper lookup:
+                plant_tick = 999999999
+                # Find the plant tick for the round containing this kill tick
+                # We pre-calculated self.bomb_plant_ticks as { round_idx: tick } based on df index
+                # If 'round_num' coming from kills matches df index + 1...
+                # Let's try to map safely.
+                # Actually, easier:
+                # self.bomb_plant_ticks provided mapping of Round START tick -> Plant tick.
+                # This is unique per round.
+                start_tick = self._round_start_ticks.get(round_num, 0)
+                plant_tick = self.bomb_plant_ticks.get(start_tick, 999999999)
+                
+                if tick >= plant_tick:
+                    is_planted = True
+
                 # 1. Calculate WPA (Win Probability Added)
-                prob_ct_before = WinProbabilityModel.get_ct_win_prob(ct_alive, t_alive)
+                prob_ct_before = WinProbabilityModel.get_ct_win_prob(ct_alive, t_alive, bomb_planted=is_planted)
                 
                 if "TERRORIST" in attacker_team_upper or attacker_team_upper == "T":
                     is_ct = False
@@ -943,17 +1052,28 @@ class FeatureExtractor:
                     new_t_alive = max(0, t_alive - 1)
                 
                 # Calculate probability after kill
-                prob_ct_after = WinProbabilityModel.get_ct_win_prob(new_ct_alive, new_t_alive)
+                # Bomb state doesn't change by kill (unless planter died? No, plant event handles that. Defuse handles outcome)
+                prob_ct_after = WinProbabilityModel.get_ct_win_prob(new_ct_alive, new_t_alive, bomb_planted=is_planted)
                 
                 if is_ct:
                     prob_my_team_after = prob_ct_after
                 else:
                     prob_my_team_after = 1.0 - prob_ct_after
                 
-                wpa = prob_my_team_after - prob_my_team_before
-                player.total_wpa += wpa
+                raw_wpa = prob_my_team_after - prob_my_team_before
+                
+                # WEIGHTING (Hero vs Eco vs Standard)
+                if raw_wpa > 0.25:
+                    final_wpa = raw_wpa * 1.5  # Hero bonus
+                elif raw_wpa < 0.05:
+                    final_wpa = raw_wpa * 0.5  # Eco penalty
+                else:
+                    final_wpa = raw_wpa
+                    
+                player.total_wpa += final_wpa
                 
                 # 2. Swing Detection (Deficit-based)
+
                 diff_before = my_alive - enemy_alive
                 diff_after = diff_before + 1
                 
