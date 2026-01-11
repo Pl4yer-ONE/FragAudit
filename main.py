@@ -20,6 +20,7 @@ from src.features import FeatureExtractor
 from src.classifier import MistakeClassifier
 from src.nlp import OllamaPhrasing
 from src.report import ReportGenerator
+from src.visualization import HeatmapGenerator
 
 
 def main():
@@ -31,6 +32,7 @@ def main():
 Examples:
     python main.py --demo match.dem
     python main.py --demo match.dem --ollama
+    python main.py --demo match.dem --heatmap
     python main.py --demo match.dem --output my_report.json --markdown
     
 For more information, see README.md
@@ -88,6 +90,12 @@ For more information, see README.md
         help="Verbose output"
     )
     
+    parser.add_argument(
+        "--heatmap",
+        action="store_true",
+        help="Generate kill/death/movement heatmaps"
+    )
+    
     args = parser.parse_args()
     
     # Check parsers if requested
@@ -121,6 +129,15 @@ For more information, see README.md
             print(f"  Parser used: {demo_parser.parser_type}")
             print(f"  Kills found: {len(parsed_demo.kills)}")
             print(f"  Damages found: {len(parsed_demo.damages)}")
+        
+        # Step 1b: Generate heatmaps if requested
+        if args.heatmap:
+            print("Generating heatmaps...")
+            heatmap_gen = HeatmapGenerator(parsed_demo)
+            heatmap_paths = heatmap_gen.generate_all()
+            if args.verbose:
+                for htype, hpath in heatmap_paths.items():
+                    print(f"  {htype}: {hpath}")
         
         # Step 2: Extract features
         print("Extracting features...")
