@@ -4,7 +4,10 @@ Normalizes various raw metrics into 0-100 scores using user-defined weighted for
 """
 
 from typing import Dict, Any, Tuple
-from src.metrics.calibration import ROLE_BASELINES, MAP_WEIGHTS, get_opponent_multiplier
+from src.metrics.calibration import (
+    ROLE_BASELINES, MAP_WEIGHTS, get_opponent_multiplier,
+    get_kast_bonus, get_dynamic_role_cap
+)
 
 class ScoreEngine:
     """
@@ -284,8 +287,8 @@ class ScoreEngine:
         strength_factor = get_opponent_multiplier(opponent_avg)
         rating *= strength_factor
         
-        # 4. KAST adjustment
-        kast_adjustment = (kast_percentage - 0.5) * 10.0
+        # 4. KAST adjustment (NONLINEAR)
+        kast_adjustment = get_kast_bonus(kast_percentage)
         rating += kast_adjustment
         
         # 5. Role-specific penalties
@@ -296,8 +299,9 @@ class ScoreEngine:
         elif role == "Anchor" and kdr < 0.6:
             rating *= 0.80  # Anchor feeding is worst
         
-        # 6. Role cap (anchors NEVER top unless god-tier)
-        rating = min(rating, role_max)
+        # 6. Dynamic role cap (map-aware)
+        role_cap = get_dynamic_role_cap(role, map_name)
+        rating = min(rating, role_cap)
         
         # Clamp 0-100
         return int(min(100, max(0, rating)))

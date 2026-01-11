@@ -67,19 +67,23 @@ def generate_leaderboard(output_dir: str):
         z = (mean_raw - role_mean) / role_std if role_std > 0 else 0
         rate = 50 + (z * 25)
         
-        # Consistency penalty: high variance = -5
+        # SCALED consistency penalty (not binary)
         if len(raw_scores) >= 2:
             import statistics
             raw_std = statistics.stdev(raw_scores)
-            if raw_std > 25:
-                rate -= 5
+            if raw_std > 20:
+                penalty = min(10, (raw_std - 20) * 0.4)
+                rate -= penalty
         
         # Role cap
         rate = min(rate, role_max)
-        rate = int(max(0, min(100, rate)))
         
-        # Smurf detection
+        # Smurf detection with PUNISHMENT
         is_smurf = mean_kdr > 1.6 and mean_raw > 80
+        smurf_mult = 0.85 if is_smurf else 1.0
+        rate *= smurf_mult
+        
+        rate = int(max(0, min(100, rate)))
         
         games = len(scores)
         aggregated.append({
@@ -92,6 +96,25 @@ def generate_leaderboard(output_dir: str):
         })
     
     # Sort by rate descending
+    aggregated.sort(key=lambda x: x['rate'], reverse=True)
+    
+    # ROLE SATURATION PENALTY (second pass)
+    role_counts = {}
+    for i, p in enumerate(aggregated[:10]):
+        role = p['role']
+        role_counts[role] = role_counts.get(role, 0) + 1
+    
+    # Apply saturation penalties
+    thresholds = {'Anchor': (3, 3), 'AWPer': (3, 2), 'Entry': (4, 1)}
+    for p in aggregated:
+        role = p['role']
+        if role in thresholds and role in role_counts:
+            max_count, penalty_per = thresholds[role]
+            if role_counts[role] > max_count:
+                excess = role_counts[role] - max_count
+                p['rate'] = max(0, p['rate'] - (excess * penalty_per))
+    
+    # Re-sort after saturation penalty
     aggregated.sort(key=lambda x: x['rate'], reverse=True)
     
     # Output
