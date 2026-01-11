@@ -8,7 +8,7 @@ Thresholds and constants for coaching analysis.
 # =============================================================================
 OLLAMA_ENABLED = False  # Set to True to enable NLP phrasing
 OLLAMA_HOST = "http://localhost:11434"
-OLLAMA_MODEL = "llama3.2"  # Or "mistral", "phi3", etc.
+OLLAMA_MODEL = "llama3"  # Or "mistral", "phi3", "llava", etc.
 OLLAMA_TIMEOUT = 30  # seconds
 
 # =============================================================================
