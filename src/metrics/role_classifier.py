@@ -62,8 +62,8 @@ class RoleClassifier:
             
             # Logic Hierarchy (Strict Priority)
             
-            # 1. AWPer - clear weapon identity
-            if awp_ratio >= 0.30:
+            # 1. AWPer - clear weapon identity (need 30% + minimum 3 kills)
+            if awp_ratio >= 0.30 and p.awp_kills >= 3:
                 role = "AWPer"
                 
             # 2. Entry - must have BOTH volume AND success

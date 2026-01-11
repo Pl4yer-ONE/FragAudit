@@ -57,25 +57,43 @@ class ScoreEngine:
                 # Linear interpolation within this band
                 ratio = (counter_strafe - lower_cs) / (upper_cs - lower_cs)
                 return lower_mult + ratio * (upper_mult - lower_mult)
-        
         return 1.0  # Fallback
+
+    @staticmethod
+    def _normalize_to_100(value: float, min_val: float, max_val: float) -> float:
+        """Normalize a value to 0-100 scale based on expected range."""
+        if max_val <= min_val:
+            return 50.0
+        normalized = (value - min_val) / (max_val - min_val) * 100
+        return max(0, min(100, normalized))
 
     @staticmethod
     def compute_aim_score(hs_percent: float, kpr: float, adr: float, counter_strafe: float = 80.0) -> Tuple[int, int]:
         """
-        Aim Score.
-        User Formula: hs_percent*0.3 + kpr*40 + adr*0.3
+        Aim Score (Properly Normalized).
         
-        Non-linear mechanical penalty based on counter-strafe quality.
-        See _get_cs_multiplier for curve.
+        Normalization ranges (based on pro averages):
+        - HS%: 35-65% (0.35-0.65) - average player ~45%
+        - KPR: 0.5-1.0 - average player ~0.7
+        - ADR: 60-120 - average player ~75
+        
+        Formula:
+        raw = (hs_score * 0.35) + (kpr_score * 0.35) + (adr_score * 0.30)
+        
+        This prevents inflation where everyone gets 80+.
+        Average player should score ~50.
+        Elite player (all 90th percentile) scores ~85-95.
         
         Returns:
             Tuple of (raw_aim, effective_aim) - both 0-100
         """
-        # HS input is 0.0-1.0 usually -> convert to 0-100
-        hs_val = hs_percent * 100
+        # Normalize each input to 0-100 scale
+        hs_score = ScoreEngine._normalize_to_100(hs_percent, 0.35, 0.65)  # 35-65% range
+        kpr_score = ScoreEngine._normalize_to_100(kpr, 0.5, 1.0)          # 0.5-1.0 range
+        adr_score = ScoreEngine._normalize_to_100(adr, 60, 120)           # 60-120 range
         
-        raw_score = (hs_val * 0.3) + (kpr * 40) + (adr * 0.3)
+        # Weighted combination
+        raw_score = (hs_score * 0.35) + (kpr_score * 0.35) + (adr_score * 0.30)
         raw_aim = int(min(100, max(0, raw_score)))
         
         # Non-linear Mechanical Penalty
@@ -89,13 +107,22 @@ class ScoreEngine:
     @staticmethod
     def compute_positioning_score(untradeable_ratio: float, trade_success: float = 0.0, survival_rate: float = 0.0) -> int:
         """
-        Positioning Score.
-        User Formula: 50 - (untradeable_death_ratio * 50) + trade_success * 30 + survival * 20
+        Positioning Score (Brutal).
+        
+        Base 70 - bad positioning HURTS.
+        Untradeable deaths are the worst sin.
+        
+        Formula:
+        score = 70 - (untradeable_ratio * 70) + (trade_success * 25) + (survival * 15)
+        
+        Average player: untradeable_ratio ~0.4 → 70 - 28 = 42
+        Feeder: untradeable_ratio ~0.8 → 70 - 56 = 14
+        Good player: untradeable_ratio ~0.2, survival 0.5 → 70 - 14 + 7.5 = 63
         """
-        base = 50.0
-        penalty = untradeable_ratio * 50.0
-        bonus_trade = trade_success * 30.0 
-        bonus_surv = survival_rate * 20.0
+        base = 70.0
+        penalty = untradeable_ratio * 70.0   # Up from 50 - BRUTAL
+        bonus_trade = trade_success * 25.0 
+        bonus_surv = survival_rate * 15.0
         
         score = base - penalty + bonus_trade + bonus_surv
         return int(min(100, max(0, score)))
@@ -145,26 +172,27 @@ class ScoreEngine:
         total_kills: int
     ) -> int:
         """
-        Impact Rating (Round-Context Aware).
+        Impact Rating (Hardened).
         
         CORE PRINCIPLE: Kills only count if they help win rounds.
+        EXIT FRAGS ARE STAT PADDING TRASH.
         
         Impact Bands:
-        - 0-10:  AFK/Useless
-        - 10-30: Low Impact / Exit Fragger
-        - 30-60: Contributor
-        - 60+:   Carry
+        - 0-15:  Useless / Stat Padder
+        - 15-40: Low Impact
+        - 40-70: Contributor
+        - 70+:   Carry
         
         Formula:
         1. Kill Value (round-context weighted):
            - Kill in won round: +6
-           - Kill in lost round: +1.5 (75% reduction)
-           - Exit frag: -2 (padding penalty)
+           - Kill in lost round: +0.5 (90% reduction - almost worthless)
+           - Exit frag: -5 (HARSH padding penalty)
         
         2. Opening Picks (highest value):
            - Opening kill + round won: +10
-           - Opening kill + round lost: +3
-           - Entry death: -4
+           - Opening kill + round lost: +2
+           - Entry death: -6 (round-losing)
         
         3. Clutches (earned, no floors):
            - 1v1: +15
@@ -172,7 +200,7 @@ class ScoreEngine:
            - Multikill rounds: +5
         
         4. Trade Value:
-           - Died traded: -2 (at least team got value)
+           - Died traded: -1 (team got value, not too bad)
            - Died untraded: -6 (pure waste)
         
         NO FLOORS. Earn every point.
@@ -180,14 +208,14 @@ class ScoreEngine:
         impact = 0.0
         
         # 1. Kill Value (round-context)
-        impact += kills_in_won_rounds * 6.0      # Full value
-        impact += kills_in_lost_rounds * 1.5     # Reduced value
-        impact -= exit_frags * 2.0               # Padding penalty
+        impact += kills_in_won_rounds * 6.0       # Full value
+        impact += kills_in_lost_rounds * 0.5      # Almost worthless (was 1.5)
+        impact -= exit_frags * 5.0                # HARSH penalty (was 2)
         
         # 2. Opening Picks (critical plays)
-        impact += opening_kills_won * 10.0       # Round-winning opener
-        impact += opening_kills_lost * 3.0       # Failed to convert
-        impact -= entry_deaths * 4.0             # Lost opening
+        impact += opening_kills_won * 10.0        # Round-winning opener
+        impact += opening_kills_lost * 2.0        # Failed to convert (reduced)
+        impact -= entry_deaths * 6.0              # Round-losing (was 4)
         
         # 3. Clutches (earned value, no free floors)
         impact += clutches_1v1 * 15.0
@@ -195,8 +223,8 @@ class ScoreEngine:
         impact += multikills * 5.0
         
         # 4. Death Value
-        impact -= tradeable_deaths * 2.0         # Died but traded
-        impact -= untradeable_deaths * 6.0       # Died alone (waste)
+        impact -= tradeable_deaths * 1.0          # Team got value (was 2)
+        impact -= untradeable_deaths * 6.0        # Died alone (waste)
         
         # Minimum: non-negative if any kills
         if total_kills > 0 and impact < 0:
@@ -229,6 +257,13 @@ class ScoreEngine:
         
         Other Penalties:
         - Death Tax: -0.5 per untradeable death
+        
+        Rating Bands (full 0-100 scale):
+        - 0-30: Bad
+        - 30-50: Below Average  
+        - 50-65: Average
+        - 65-80: Strong
+        - 80-100: Elite
         """
         aim = scores.get("aim") if scores.get("aim") is not None else 50
         pos = scores.get("positioning") if scores.get("positioning") is not None else 50
@@ -239,21 +274,20 @@ class ScoreEngine:
         # 1. Death Tax
         rating -= (untradeable_deaths * 0.5)
         
-        # 2. Impact Band Caps (graduated, not binary)
-        if imp <= 10:
-            # Useless band - hard cap
-            rating = min(rating, 30.0)
-        elif imp <= 30:
+        # 2. Impact Band Caps (adjusted for new bands)
+        if imp <= 15:
+            # Useless / Stat Padder - hard cap
+            rating = min(rating, 35.0)
+        elif imp <= 40:
             # Low impact band - moderate cap
-            rating = min(rating, 45.0)
-        # 30-60 = contributor, 60+ = carry - no cap
+            rating = min(rating, 50.0)
+        # 40-70 = contributor, 70+ = carry - no cap
             
         # 3. Role-Specific Adjustments
         if role == "Entry" and kdr < 0.8:
             rating *= 0.75
         elif role == "AWPer":
             # AWPer space-denial: survival = map control
-            # +5 bonus if survival > 50% (stayed alive, denied space)
             if survival_rate > 0.5:
                 rating += 5.0
             # Opening picks are high-value for AWPers
@@ -262,4 +296,5 @@ class ScoreEngine:
             if kdr < 0.8:
                 rating *= 0.80
             
-        return int(min(70, max(0, rating)))
+        # FULL 0-100 SCALE (removed 70 cap)
+        return int(min(100, max(0, rating)))
