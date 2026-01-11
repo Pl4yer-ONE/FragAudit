@@ -76,15 +76,12 @@ DEFAULT_CONFIG = {
     "radar_scale": 8.0,
 }
 
-# Round phase time boundaries (in seconds from round start)
+# Round phase boundaries (by round number, not time)
 ROUND_PHASES = {
-    "early": (0, 20),
-    "mid": (20, 60),
-    "late": (60, 999),
+    "early": (1, 5),      # Rounds 1-5
+    "mid": (6, 20),       # Rounds 6-20
+    "late": (21, 999),    # Rounds 21+
 }
-
-# Tick rate for CS2
-TICK_RATE = 64
 
 
 class HeatmapGenerator:
@@ -269,25 +266,44 @@ class HeatmapGenerator:
     
     def _filter_by_phase(
         self,
+        df: pd.DataFrame,
         x: np.ndarray,
-        y: np.ndarray,
-        ticks: np.ndarray
+        y: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Filter coordinates by round phase."""
+        """
+        Filter coordinates by round phase.
+        
+        Uses round column from dataframe if available.
+        Phase filtering is by round number:
+        - early: rounds 1-5
+        - mid: rounds 6-20  
+        - late: rounds 21+
+        """
         if self.phase is None or len(x) == 0:
             return x, y
         
         if self.phase not in ROUND_PHASES:
             return x, y
         
-        start_sec, end_sec = ROUND_PHASES[self.phase]
-        start_tick = start_sec * TICK_RATE
-        end_tick = end_sec * TICK_RATE
+        start_round, end_round = ROUND_PHASES[self.phase]
         
-        # Filter by tick (relative to round start - simplified)
-        # In practice, would need round start ticks for accurate filtering
-        mask = (ticks >= start_tick) & (ticks < end_tick)
+        # Try to find round column
+        round_col = None
+        for col in ['total_rounds_played', 'round', 'round_num', 'Round']:
+            if isinstance(df, pd.DataFrame) and col in df.columns:
+                round_col = col
+                break
         
+        if round_col is None:
+            # No round data available - return all data
+            return x, y
+        
+        # Get rounds matching our coordinates
+        rounds = df[round_col].to_numpy()
+        if len(rounds) != len(x):
+            return x, y
+        
+        mask = (rounds >= start_round) & (rounds <= end_round)
         return x[mask], y[mask]
     
     def _normalize_coordinates(
@@ -333,7 +349,58 @@ class HeatmapGenerator:
             range=[[0, self.resolution], [0, self.resolution]]
         )
         
+        # Clamp to non-negative (histogram2d should never produce negative, but be safe)
+        grid = np.clip(grid, 0, None)
+        
         return grid
+    
+    def _render_no_events(
+        self,
+        title: str,
+        output_path: Path
+    ) -> str:
+        """
+        Render placeholder when no events in this phase.
+        
+        Returns:
+            Path to saved file
+        """
+        fig, ax = plt.subplots(figsize=(19.2, 10.8), dpi=100)
+        
+        # Dark background
+        fig.patch.set_facecolor('#1a1a2e')
+        ax.set_facecolor('#1a1a2e')
+        
+        # Title
+        map_display = self.map_name.replace("de_", "").upper() if self.map_name != "unknown" else "UNKNOWN MAP"
+        phase_text = f" ({self.phase.upper()} ROUND)" if self.phase else ""
+        full_title = f"{title}\n{map_display}{phase_text}"
+        ax.set_title(full_title, fontsize=18, fontweight='bold', color='white', pad=20)
+        
+        # No events message
+        ax.text(
+            0.5, 0.5, "No events in this phase",
+            transform=ax.transAxes,
+            fontsize=24,
+            verticalalignment='center',
+            horizontalalignment='center',
+            color='#666666',
+            style='italic'
+        )
+        
+        # Hide axes
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=100, bbox_inches='tight', facecolor='#1a1a2e', edgecolor='none')
+        plt.close(fig)
+        
+        return str(output_path)
     
     def _render_heatmap(
         self,
@@ -352,13 +419,21 @@ class HeatmapGenerator:
             output_path: Path to save PNG
             cmap: Colormap to use
             sigma: Gaussian smoothing sigma
+            event_count: Raw event count for display
             
         Returns:
             Path to saved file
         """
+        # Check for zero events - render placeholder instead
+        raw_event_count = int(grid.sum())
+        if raw_event_count == 0:
+            return self._render_no_events(title, output_path)
+        
         # Apply Gaussian smoothing
         if sigma > 0:
             grid = gaussian_filter(grid, sigma=sigma)
+            # Clamp after smoothing
+            grid = np.clip(grid, 0, None)
         
         # Create figure (1920x1080 at 100 DPI = 19.2 x 10.8 inches)
         fig, ax = plt.subplots(figsize=(19.2, 10.8), dpi=100)
@@ -381,11 +456,12 @@ class HeatmapGenerator:
             except Exception as e:
                 print(f"  Warning: Could not load map image: {e}")
         
-        # Normalize grid for visualization
-        if grid.max() > 0:
-            grid_norm = grid / grid.max()
+        # Normalize grid for visualization (per-heatmap normalization)
+        max_density = grid.max()
+        if max_density > 0:
+            grid_norm = grid / max_density
         else:
-            grid_norm = grid
+            grid_norm = np.zeros_like(grid)
         
         # Plot heatmap overlay
         im = ax.imshow(
@@ -418,9 +494,8 @@ class HeatmapGenerator:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         
-        # Stats box
-        total_events = int(grid.sum()) if sigma == 0 else "~" + str(int(grid.sum()))
-        stats_text = f"Events: {total_events}"
+        # Stats box (show actual raw event count)
+        stats_text = f"Events: {raw_event_count}"
         ax.text(
             0.02, 0.98, stats_text,
             transform=ax.transAxes,
@@ -451,11 +526,11 @@ class HeatmapGenerator:
         """Generate heatmap of kill locations."""
         kills_df = self.demo.kills
         
-        x, y, ticks = self._extract_coordinates(kills_df, "attacker_X", "attacker_Y")
+        x, y, _ = self._extract_coordinates(kills_df, "attacker_X", "attacker_Y")
         if len(x) == 0:
-            x, y, ticks = self._extract_coordinates(kills_df, "X", "Y")
+            x, y, _ = self._extract_coordinates(kills_df, "X", "Y")
         
-        x, y = self._filter_by_phase(x, y, ticks)
+        x, y = self._filter_by_phase(kills_df, x, y)
         x_norm, y_norm = self._normalize_coordinates(x, y)
         grid = self._create_density_grid(x_norm, y_norm)
         
@@ -468,11 +543,11 @@ class HeatmapGenerator:
         """Generate heatmap of death locations."""
         kills_df = self.demo.kills
         
-        x, y, ticks = self._extract_coordinates(kills_df, "user_X", "user_Y")
+        x, y, _ = self._extract_coordinates(kills_df, "user_X", "user_Y")
         if len(x) == 0:
-            x, y, ticks = self._extract_coordinates(kills_df, "X", "Y")
+            x, y, _ = self._extract_coordinates(kills_df, "X", "Y")
         
-        x, y = self._filter_by_phase(x, y, ticks)
+        x, y = self._filter_by_phase(kills_df, x, y)
         x_norm, y_norm = self._normalize_coordinates(x, y)
         grid = self._create_density_grid(x_norm, y_norm)
         
@@ -484,19 +559,20 @@ class HeatmapGenerator:
     def generate_movement_heatmap(self) -> str:
         """Generate heatmap of player movement density."""
         positions_df = self.demo.player_positions
+        source_df = positions_df
         
-        x, y, ticks = self._extract_coordinates(positions_df, "X", "Y")
+        x, y, _ = self._extract_coordinates(positions_df, "X", "Y")
         
         if len(x) == 0:
             print("  Warning: No position data, using kill/death locations as proxy")
             kills_df = self.demo.kills
-            x1, y1, t1 = self._extract_coordinates(kills_df, "attacker_X", "attacker_Y")
-            x2, y2, t2 = self._extract_coordinates(kills_df, "user_X", "user_Y")
+            source_df = kills_df
+            x1, y1, _ = self._extract_coordinates(kills_df, "attacker_X", "attacker_Y")
+            x2, y2, _ = self._extract_coordinates(kills_df, "user_X", "user_Y")
             x = np.concatenate([x1, x2]) if len(x1) > 0 or len(x2) > 0 else np.array([])
             y = np.concatenate([y1, y2]) if len(y1) > 0 or len(y2) > 0 else np.array([])
-            ticks = np.concatenate([t1, t2]) if len(t1) > 0 or len(t2) > 0 else np.array([])
         
-        x, y = self._filter_by_phase(x, y, ticks)
+        x, y = self._filter_by_phase(source_df, x, y)
         x_norm, y_norm = self._normalize_coordinates(x, y)
         grid = self._create_density_grid(x_norm, y_norm)
         
