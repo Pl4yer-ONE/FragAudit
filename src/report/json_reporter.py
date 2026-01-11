@@ -142,8 +142,10 @@ class JsonReporter:
                 untradeable_deaths,
                 p.tradeable_deaths,
                 
-                # Stats
-                p.kills
+                # Stats for sanity caps
+                p.kills,
+                kdr,
+                p.detected_role
             )
         }
         

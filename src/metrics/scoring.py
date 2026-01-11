@@ -146,9 +146,9 @@ class ScoreEngine:
     @staticmethod
     def compute_impact_score(
         # Opening duels
-        opening_kills_won: int,     # Opening kills in rounds team won
-        opening_kills_lost: int,    # Opening kills in rounds team lost
-        entry_deaths: int,          # Deaths in opening duels
+        opening_kills_won: int,
+        opening_kills_lost: int,
+        entry_deaths: int,
         
         # Kill context
         kills_in_won_rounds: int,
@@ -164,75 +164,72 @@ class ScoreEngine:
         untradeable_deaths: int, 
         tradeable_deaths: int,
         
-        # Stats
-        total_kills: int
+        # Stats for sanity
+        total_kills: int,
+        kdr: float = 1.0,
+        role: str = "Anchor"
     ) -> int:
         """
-        Impact Rating (Round-Context Aware - HARDENED).
+        Impact Rating (Auto-Calibrated).
         
-        CORE PRINCIPLE: Kills only count if they help win rounds.
-        Exit frag padding is PUNISHED.
+        Component Caps (prevent single-stat gaming):
+        - Clutch points: max 25
+        - Kill points: max 30  
+        - Entry points: max 20
         
-        Impact Bands:
-        - 0-10:  AFK/Useless
-        - 10-30: Low Impact / Exit Fragger
-        - 30-60: Contributor
-        - 60+:   Carry
+        Lone Wolf Penalty:
+        - If untradeable > tradeable * 2: -15%
         
-        Formula:
-        1. Kill Value (round-context weighted):
-           - Kill in won round: +6
-           - Kill in lost round: +0.5 (91% reduction - almost worthless)
-           - Exit frag: -5 (BRUTAL - stat padding trash)
+        Sanity Caps:
+        - kills < 10 and impact > 70: cap at 70
+        - kdr < 0.8 and impact > 60: cap at 60
         
-        2. Opening Picks (highest value):
-           - Opening kill + round won: +12
-           - Opening kill + round lost: +2
-           - Entry death: -6 (round-losing)
-        
-        3. Clutches (earned, no floors):
-           - 1v1: +15
-           - 1vN: +25
-           - Multikill rounds: +5
-        
-        4. Trade Value:
-           - Died traded: -1 (team got value, minor penalty)
-           - Died traded: -0.5 (team got value)
-           - Died untraded: -3 (waste, but not career-ending)
-        
-        5. Round Contribution Floor:
-           - 5+ kills in won rounds: +10 (winning matters)
-        
-        Allow negative to -20. Final rating handles the rest.
+        Expected Output:
+        - 0-20:  AFK/Bot
+        - 20-35: Bad game
+        - 40-55: Average
+        - 60-75: Good
+        - 80-90: Carry
+        - 95+:   God
         """
-        impact = 0.0
+        # 1. Kill Value (CAPPED at 30)
+        kill_points = kills_in_won_rounds * 6.0 + kills_in_lost_rounds * 0.5
+        kill_points -= exit_frags * 0.5
+        kill_points = min(kill_points, 30.0)  # Cap
         
-        # 1. Kill Value (round-context)
-        impact += kills_in_won_rounds * 6.0      # Full value
-        impact += kills_in_lost_rounds * 0.5     # Low value
-        impact -= exit_frags * 0.5               # Discounted, not criminal
+        # 2. Entry Points (CAPPED at 20)
+        entry_points = opening_kills_won * 10.0 + opening_kills_lost * 2.0
+        entry_points -= entry_deaths * 2.0
+        entry_points = min(entry_points, 20.0)  # Cap
         
-        # 2. Opening Picks (critical plays)
-        impact += opening_kills_won * 12.0       # Round-winning opener
-        impact += opening_kills_lost * 2.0       # Failed to convert
-        impact -= entry_deaths * 3.0             # Bad, but not round-ending
+        # 3. Clutch Points (CAPPED at 25)
+        clutch_points = clutches_1v1 * 12.0 + clutches_1vN * 20.0
+        clutch_points += multikills * 4.0
+        clutch_points = min(clutch_points, 25.0)  # Cap
         
-        # 3. Clutches (earned value)
-        impact += clutches_1v1 * 15.0
-        impact += clutches_1vN * 25.0
-        impact += multikills * 5.0
+        # 4. Death Penalty (moderate)
+        death_penalty = tradeable_deaths * 0.5 + untradeable_deaths * 2.0
         
-        # 4. Death Value (reduced penalties)
-        impact -= tradeable_deaths * 0.5         # Team got value (minor)
-        impact -= untradeable_deaths * 3.0       # Waste, but reasonable
-        
-        # 5. Round Contribution Floor
-        # Winning rounds matters more than *how*
+        # 5. Round Contribution Bonus
+        round_bonus = 0.0
         if kills_in_won_rounds >= 5:
-            impact += 10.0
+            round_bonus = 8.0
         
-        # Allow negative - let final rating clamp
-        return int(min(100, max(-20, impact)))
+        # Sum raw impact
+        raw_impact = kill_points + entry_points + clutch_points + round_bonus - death_penalty
+        
+        # 6. Lone Wolf Penalty (-15%)
+        if tradeable_deaths > 0 and untradeable_deaths > tradeable_deaths * 2:
+            raw_impact *= 0.85
+        
+        # 7. Sanity Caps (no passengers getting MVP)
+        if total_kills < 10 and raw_impact > 70:
+            raw_impact = 70.0
+        if kdr < 0.8 and raw_impact > 60:
+            raw_impact = 60.0
+        
+        # Clamp to reasonable range (allow slight negative)
+        return int(min(100, max(-10, raw_impact)))
 
     @staticmethod
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
