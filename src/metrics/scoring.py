@@ -122,84 +122,85 @@ class ScoreEngine:
     
     @staticmethod
     def compute_impact_score(
-        entry_kills: int, 
-        entry_deaths: int,
+        # Opening duels
+        opening_kills_won: int,     # Opening kills in rounds team won
+        opening_kills_lost: int,    # Opening kills in rounds team lost
+        entry_deaths: int,          # Deaths in opening duels
+        
+        # Kill context
+        kills_in_won_rounds: int,
+        kills_in_lost_rounds: int,
+        exit_frags: int,
+        
+        # Round-winning plays
         multikills: int, 
         clutches_1v1: int, 
         clutches_1vN: int,
+        
+        # Death context
         untradeable_deaths: int, 
         tradeable_deaths: int,
-        adr: float, 
-        total_kills: int,
-        total_deaths: int
+        
+        # Stats
+        total_kills: int
     ) -> int:
         """
-        Impact Rating (Perfect Form).
+        Impact Rating (Round-Context Aware).
         
-        CORE PRINCIPLE: Reward SUCCESS, not ATTEMPTS.
+        CORE PRINCIPLE: Kills only count if they help win rounds.
         
         Impact Bands:
-        - 0-10:  AFK/Useless - literally did nothing
-        - 10-30: Failed Entry / Low Impact - tried but failed
-        - 30-60: Contributor - average player
-        - 60+:   Carry - won rounds for team
+        - 0-10:  AFK/Useless
+        - 10-30: Low Impact / Exit Fragger
+        - 30-60: Contributor
+        - 60+:   Carry
         
         Formula:
-        1. Opening Pick Value:
-           - Entry Kill: +10 (you won the entry)
-           - Entry Death: -3 (you lost the entry but created info)
-           
-        2. Round-Winning Plays:
-           - 1v1 Clutch: +15
-           - 1vN Clutch: +25
-           - Multikill rounds: +6 each
-           
-        3. Trade Value:
-           - Tradeable deaths: +1 each (you died in position to be traded)
-           - Untradeable deaths: -2 each (you died alone, waste)
-           
-        4. Damage Context:
-           - (ADR - 75) * 0.2
-           
-        5. Entry Success Rate Bonus:
-           - If entry_attempts > 2 and success_rate > 50%: +8
-           - If entry_attempts > 2 and success_rate < 30%: -5 (feeder penalty)
+        1. Kill Value (round-context weighted):
+           - Kill in won round: +6
+           - Kill in lost round: +1.5 (75% reduction)
+           - Exit frag: -2 (padding penalty)
+        
+        2. Opening Picks (highest value):
+           - Opening kill + round won: +10
+           - Opening kill + round lost: +3
+           - Entry death: -4
+        
+        3. Clutches (earned, no floors):
+           - 1v1: +15
+           - 1vN: +25
+           - Multikill rounds: +5
+        
+        4. Trade Value:
+           - Died traded: -2 (at least team got value)
+           - Died untraded: -6 (pure waste)
+        
+        NO FLOORS. Earn every point.
         """
         impact = 0.0
         
-        # 1. Opening Pick Value
-        impact += entry_kills * 10.0      # Won entry = massive value
-        impact -= entry_deaths * 3.0       # Lost entry = some value (info) but net negative
+        # 1. Kill Value (round-context)
+        impact += kills_in_won_rounds * 6.0      # Full value
+        impact += kills_in_lost_rounds * 1.5     # Reduced value
+        impact -= exit_frags * 2.0               # Padding penalty
         
-        # 2. Round-Winning Plays
+        # 2. Opening Picks (critical plays)
+        impact += opening_kills_won * 10.0       # Round-winning opener
+        impact += opening_kills_lost * 3.0       # Failed to convert
+        impact -= entry_deaths * 4.0             # Lost opening
+        
+        # 3. Clutches (earned value, no free floors)
         impact += clutches_1v1 * 15.0
         impact += clutches_1vN * 25.0
-        impact += multikills * 6.0
+        impact += multikills * 5.0
         
-        # 3. Trade Value
-        impact += tradeable_deaths * 1.0   # Died in good position
-        impact -= untradeable_deaths * 2.0  # Died alone
+        # 4. Death Value
+        impact -= tradeable_deaths * 2.0         # Died but traded
+        impact -= untradeable_deaths * 6.0       # Died alone (waste)
         
-        # 4. Damage Context
-        impact += (adr - 75.0) * 0.2
-        
-        # 5. Entry Success Rate
-        entry_attempts = entry_kills + entry_deaths
-        if entry_attempts >= 2:
-            success_rate = entry_kills / entry_attempts
-            if success_rate >= 0.50:
-                impact += 8.0  # Good entry fragger
-            elif success_rate < 0.30:
-                impact -= 5.0  # Feeder penalty
-        
-        # Floor: clutch winners are NOT zero impact
-        total_clutches = clutches_1v1 + clutches_1vN
-        if total_clutches > 0:
-            impact = max(impact, 12.0 + (total_clutches * 6.0))
-        
-        # Minimum: if you have kills, you're not AFK
-        if total_kills > 0 and impact < 5:
-            impact = 5.0
+        # Minimum: non-negative if any kills
+        if total_kills > 0 and impact < 0:
+            impact = max(impact, 5.0)
         
         # Clamp 0-100
         return int(min(100, max(0, impact)))

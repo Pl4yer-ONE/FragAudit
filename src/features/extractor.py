@@ -71,6 +71,31 @@ class DeathContext:
 
 
 @dataclass
+class KillContext:
+    """Contextual information about a single kill event."""
+    tick: int
+    round_num: int
+    round_time_seconds: float  # Seconds since round start
+    
+    # Round outcome
+    round_won: bool            # Did killer's team win this round?
+    
+    # Player counts at kill time
+    alive_ct: int              # CTs alive when kill happened
+    alive_t: int               # Ts alive when kill happened
+    
+    # Kill classification
+    is_opening_kill: bool      # First kill of the round
+    is_exit_frag: bool         # Kill after round essentially decided (last 10s, 1vN)
+    is_traded: bool            # Killer was killed within 3s
+    
+    # Context
+    had_flash_support: bool = False   # Flash within 2s before kill
+    victim_id: str = ""
+    weapon: str = ""
+
+
+@dataclass
 class PlayerFeatures:
     """Features extracted for a single player."""
     player_id: str
@@ -136,6 +161,16 @@ class PlayerFeatures:
     # Contextual death data
     death_contexts: List[DeathContext] = field(default_factory=list)
     
+    # Contextual kill data (NEW - round context)
+    kill_contexts: List[KillContext] = field(default_factory=list)
+    
+    # Round-context aggregates (computed from kill_contexts)
+    kills_in_won_rounds: int = 0
+    kills_in_lost_rounds: int = 0
+    exit_frags: int = 0
+    opening_kills_won: int = 0    # Opening kills in rounds team won
+    opening_kills_lost: int = 0   # Opening kills in rounds team lost
+    
     # Movement Mechanics
     counter_strafing_score_avg: float = 0.0
     peek_types: Dict[str, int] = field(default_factory=lambda: {"jiggle": 0, "wide": 0, "dry": 0})
@@ -175,6 +210,9 @@ class FeatureExtractor:
         
         # New: Clutch & Opening Duel extraction
         self._extract_clutch_and_opening_duels()
+        
+        # NEW: Kill context with round outcome
+        self._extract_kill_contexts()
         
         # New: Run movement analysis (computationally expensive, so selective)
         self._analyze_movement()
@@ -681,6 +719,142 @@ class FeatureExtractor:
     def _get_player_id(self, row, role):
         col = self._get_player_column(pd.DataFrame([row]), role)
         return str(row[col]) if col else None
+
+    def _extract_kill_contexts(self):
+        """
+        Extract kill context with round outcome for each kill.
+        This enables impact scoring that values kills in won rounds higher.
+        """
+        kills_df = self.demo.kills
+        rounds_df = self.demo.rounds
+        
+        if self._is_empty(kills_df) or self._is_empty(rounds_df):
+            return
+        
+        att_col = self._get_player_column(kills_df, "attacker")
+        vic_col = self._get_player_column(kills_df, "victim")
+        att_team_col = self._get_team_column(kills_df, "attacker")
+        
+        if not att_col:
+            return
+        
+        # Build round lookup: round_num -> (start_tick, end_tick, winner)
+        round_lookup = {}
+        for idx, r in rounds_df.iterrows():
+            round_num = idx  # 0-indexed
+            start_tick = r.get('round_start_tick', 0)
+            end_tick = r.get('round_end_tick', 0)
+            winner = r.get('winner', -1)
+            round_lookup[round_num] = (start_tick, end_tick, winner)
+        
+        # Process each round
+        rounds_in_kills = kills_df['total_rounds_played'].unique() if 'total_rounds_played' in kills_df.columns else []
+        
+        for round_num in rounds_in_kills:
+            round_kills = kills_df[kills_df['total_rounds_played'] == round_num].sort_values('tick')
+            if round_kills.empty:
+                continue
+            
+            # Get round info
+            round_info = round_lookup.get(round_num, (0, 0, -1))
+            round_start_tick, round_end_tick, winner = round_info
+            
+            # Track alive players
+            alive = {'CT': 5, 'TERRORIST': 5}  # Assume 5v5
+            
+            # First kill of round (opening)
+            is_first = True
+            
+            for _, kill in round_kills.iterrows():
+                tick = int(kill.get('tick', 0))
+                attacker_id = str(kill.get(att_col, ""))
+                victim_id = str(kill.get(vic_col, "")) if vic_col else ""
+                attacker_team = str(kill.get(att_team_col, "")) if att_team_col else ""
+                weapon = str(kill.get('weapon', ''))
+                
+                if not attacker_id or pd.isna(kill.get(att_col)):
+                    is_first = False
+                    continue
+                
+                player = self._ensure_player(attacker_id)
+                
+                # Calculate round time
+                round_time_seconds = (tick - round_start_tick) / TICK_RATE if round_start_tick > 0 else 0
+                
+                # Determine if round was won by attacker's team
+                # winner is 'T' or 'CT' (string), attacker_team is 'TERRORIST' or 'CT'
+                round_won = False
+                if attacker_team and winner:
+                    winner_str = str(winner).upper()
+                    team_str = attacker_team.upper()
+                    
+                    # T won and attacker is T/TERRORIST
+                    if winner_str == "T" and ("TERRORIST" in team_str or team_str == "T"):
+                        round_won = True
+                    # CT won and attacker is CT
+                    elif winner_str == "CT" and "CT" in team_str:
+                        round_won = True
+                
+                # Is exit frag? (Last 10 seconds of round OR 1vN situation)
+                round_duration = (round_end_tick - round_start_tick) / TICK_RATE if round_end_tick > round_start_tick else 0
+                is_exit = False
+                if round_duration > 0:
+                    time_remaining = round_duration - round_time_seconds
+                    is_exit = time_remaining < 10  # Last 10 seconds
+                
+                # Also exit if it's cleanup (1vN where N > 2)
+                total_alive = alive.get('CT', 0) + alive.get('TERRORIST', 0)
+                if total_alive <= 2:
+                    is_exit = True
+                
+                # Check if killer got traded (killed within 3s after this kill)
+                killer_traded = False
+                future_kills = kills_df[(kills_df['tick'] > tick) & (kills_df['tick'] <= tick + TRADE_WINDOW_TICKS)]
+                for _, future_kill in future_kills.iterrows():
+                    future_victim = str(future_kill.get(vic_col, "")) if vic_col else ""
+                    if future_victim == attacker_id:
+                        killer_traded = True
+                        break
+                
+                # Create context
+                ctx = KillContext(
+                    tick=tick,
+                    round_num=round_num,
+                    round_time_seconds=round_time_seconds,
+                    round_won=round_won,
+                    alive_ct=alive.get('CT', 0),
+                    alive_t=alive.get('TERRORIST', 0),
+                    is_opening_kill=is_first,
+                    is_exit_frag=is_exit,
+                    is_traded=killer_traded,
+                    victim_id=victim_id,
+                    weapon=weapon
+                )
+                player.kill_contexts.append(ctx)
+                
+                # Update aggregates
+                if round_won:
+                    player.kills_in_won_rounds += 1
+                else:
+                    player.kills_in_lost_rounds += 1
+                
+                if is_exit:
+                    player.exit_frags += 1
+                
+                if is_first:
+                    if round_won:
+                        player.opening_kills_won += 1
+                    else:
+                        player.opening_kills_lost += 1
+                
+                # Update alive count (victim died)
+                vic_team = str(kill.get(self._get_team_column(kills_df, "victim"), "")) if self._get_team_column(kills_df, "victim") else ""
+                if "CT" in vic_team.upper():
+                    alive['CT'] = max(0, alive['CT'] - 1)
+                elif "TERRORIST" in vic_team.upper() or vic_team.upper() == "T":
+                    alive['TERRORIST'] = max(0, alive['TERRORIST'] - 1)
+                
+                is_first = False
 
     def _classify_roles(self):
         """Use RoleClassifier to assign roles."""

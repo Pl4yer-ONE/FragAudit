@@ -123,16 +123,27 @@ class JsonReporter:
                 p.flashes_thrown
             ),
             "impact": ScoreEngine.compute_impact_score(
-                p.entry_kills,
+                # Opening duels
+                p.opening_kills_won,
+                p.opening_kills_lost,
                 p.entry_deaths,
+                
+                # Kill context (from kill_contexts aggregates)
+                p.kills_in_won_rounds,
+                p.kills_in_lost_rounds,
+                p.exit_frags,
+                
+                # Round-winning plays
                 p.multikills, 
                 p.clutches_1v1_won,
                 p.clutches_1vN_won,
+                
+                # Death context
                 untradeable_deaths,
                 p.tradeable_deaths,
-                p.damage_per_round,
-                p.kills,
-                p.deaths
+                
+                # Stats
+                p.kills
             )
         }
         
@@ -194,6 +205,13 @@ class JsonReporter:
                 "entry_kills": p.entry_kills,
                 "entry_deaths": p.entry_deaths,
                 "multikills": p.multikills,
+                # Round context (NEW)
+                "kills_in_won_rounds": p.kills_in_won_rounds,
+                "kills_in_lost_rounds": p.kills_in_lost_rounds,
+                "exit_frags": p.exit_frags,
+                "opening_kills_won": p.opening_kills_won,
+                "opening_kills_lost": p.opening_kills_lost,
+                # Utility
                 "enemies_blinded": p.enemies_blinded,
                 "utility_damage": p.grenade_damage,
                 "clutches_1v1_won": p.clutches_1v1_won,
