@@ -122,32 +122,36 @@ class JsonReporter:
                 p.grenade_damage, 
                 p.flashes_thrown
             ),
-            "impact": ScoreEngine.compute_impact_score(
-                # Opening duels
-                p.opening_kills_won,
-                p.opening_kills_lost,
-                p.entry_deaths,
-                
-                # Kill context (from kill_contexts aggregates)
-                p.kills_in_won_rounds,
-                p.kills_in_lost_rounds,
-                p.exit_frags,
-                
-                # Round-winning plays
-                p.multikills, 
-                p.clutches_1v1_won,
-                p.clutches_1vN_won,
-                
-                # Death context
-                untradeable_deaths,
-                p.tradeable_deaths,
-                
-                # Stats for sanity caps
-                p.kills,
-                kdr,
-                p.detected_role
-            )
         }
+        
+        # Get impact tuple (raw, clamped)
+        raw_impact, clamped_impact = ScoreEngine.compute_impact_score(
+            # Opening duels
+            p.opening_kills_won,
+            p.opening_kills_lost,
+            p.entry_deaths,
+            
+            # Kill context (from kill_contexts aggregates)
+            p.kills_in_won_rounds,
+            p.kills_in_lost_rounds,
+            p.exit_frags,
+            
+            # Round-winning plays
+            p.multikills, 
+            p.clutches_1v1_won,
+            p.clutches_1vN_won,
+            
+            # Death context
+            untradeable_deaths,
+            p.tradeable_deaths,
+            
+            # Stats for sanity caps
+            p.kills,
+            kdr,
+            p.detected_role
+        )
+        scores["impact"] = clamped_impact
+        scores["raw_impact"] = round(raw_impact, 1)  # Store raw for calibration
         
         # Handle hidden utility score
         if scores["utility"] == -1:

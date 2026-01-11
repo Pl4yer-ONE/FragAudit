@@ -168,7 +168,7 @@ class ScoreEngine:
         total_kills: int,
         kdr: float = 1.0,
         role: str = "Anchor"
-    ) -> int:
+    ) -> Tuple[float, int]:
         """
         Impact Rating (Auto-Calibrated).
         
@@ -215,21 +215,29 @@ class ScoreEngine:
         if kills_in_won_rounds >= 5:
             round_bonus = 8.0
         
-        # Sum raw impact
-        raw_impact = kill_points + entry_points + clutch_points + round_bonus - death_penalty
+        # Sum raw impact (BEFORE any caps/penalties)
+        raw_before_caps = kill_points + entry_points + clutch_points + round_bonus - death_penalty
+        
+        # Store true raw for calibration
+        true_raw = raw_before_caps
+        
+        processed = raw_before_caps
         
         # 6. Lone Wolf Penalty (-15%)
         if tradeable_deaths > 0 and untradeable_deaths > tradeable_deaths * 2:
-            raw_impact *= 0.85
+            processed *= 0.85
         
         # 7. Sanity Caps (no passengers getting MVP)
-        if total_kills < 10 and raw_impact > 70:
-            raw_impact = 70.0
-        if kdr < 0.8 and raw_impact > 60:
-            raw_impact = 60.0
+        if total_kills < 10 and processed > 70:
+            processed = 70.0
+        if kdr < 0.8 and processed > 60:
+            processed = 60.0
         
-        # Clamp to reasonable range (allow slight negative)
-        return int(min(100, max(-10, raw_impact)))
+        # Clamp to reasonable range
+        clamped = int(min(100, max(-10, processed)))
+        
+        # Return (raw, clamped) for calibration
+        return (true_raw, clamped)
 
     @staticmethod
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
