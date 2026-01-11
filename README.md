@@ -2,16 +2,16 @@
 
 # 🎮 CS2 AI Coach
 
-**Metrics-driven post-match coaching for Counter-Strike 2**
+**Pro-grade performance analytics for Counter-Strike 2**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Pl4yer-ONE/cs2-ai-coach?style=social)](https://github.com/Pl4yer-ONE/cs2-ai-coach)
 
-*Parse demos → Extract features → Classify mistakes → Get AI coaching*
+*Parse demos → Extract features → Calibrate ratings → Expose frauds*
 
 [**Quick Start**](#-quick-start) •
-[**How It Works**](examples/HOW_IT_WORKS.md) •
+[**Rating System**](#-rating-system) •
 [**Examples**](#-sample-output) •
 [**Contributing**](#-contributing)
 
@@ -23,91 +23,106 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🔍 **Demo Parsing** | Parse CS2 `.dem` files using demoparser2 (MIT) |
-| 📊 **Feature Extraction** | Extract aim, positioning, utility & economy metrics |
-| 🎯 **Smart Classification** | Rule-based mistake detection with confidence scores |
-| 🤖 **AI Coaching** | Optional Ollama integration for natural language feedback |
-| 📝 **Reports** | Generate JSON + Markdown coaching reports |
+| 🔍 **Demo Parsing** | Parse CS2 `.dem` files with full round context |
+| 📊 **Feature Extraction** | Kills, deaths, KAST, clutches, swing kills, trades |
+| 🎯 **Role Detection** | Auto-classify Entry, Anchor, AWPer, Support, Lurker |
+| ⚡ **Swing Kills** | Track momentum-shifting kills (man-advantage flips) |
+| 🧮 **Z-Score Rating** | Role-based normalization with brutal calibration |
+| 🚨 **Smurf Detection** | Flag and penalize stat-padders |
+| 📊 **Leaderboard** | Aggregated player rankings across demos |
 
-## ✅ Verified Working
+---
 
-Tested on **fl0m Mythical LAN 2026 - Phoenix vs Rave (Nuke)**:
+## 📈 Rating System (S-Tier)
 
+### Pipeline
 ```
-✓ 10 players analyzed
-✓ 103 kills parsed  
-✓ 452 damages tracked
-✓ 4 issues classified
-✓ AI feedback generated
+raw_impact → role_zscore → map_weight → opponent_weight → kast_bonus → penalties → role_cap
 ```
+
+### Role-Based Normalization
+| Role | Mean | Std | Max Cap |
+|------|------|-----|---------|
+| AWPer | 46.4 | 22.3 | 95 |
+| Entry | 42.6 | 22.6 | 92 |
+| Anchor | 28.6 | 24.1 | 88 |
+
+### Impact Components
+| Component | Formula |
+|-----------|---------|
+| Kill Value | `kills_in_won * 8 + kills_in_lost * 0.5` |
+| Entry Points | `opening_won * 14 + opening_lost * 1` |
+| Clutch Points | `1v1 * 15 + 1vN * 35 + multikills * 8` |
+| **Swing Kills** | `swing_kills * 8` (momentum-shifting) |
+| Death Penalty | `tradeable * 0.5 + untradeable * 4` |
+
+### Calibration Features
+- ✅ **Role caps** - Anchors can't top leaderboard unless god-tier
+- ✅ **Map weights** - Nuke Entry 0.85x, Anchor 1.15x
+- ✅ **Consistency penalty** - High variance = -10 max
+- ✅ **Smurf detection** - KDR > 1.6 + impact > 80 = 0.85x
+- ✅ **Role saturation** - >3 same role in top 10 = penalty
+
+---
 
 ## 📸 Sample Output
 
-### Console Summary
+### Leaderboard
 ```
-==================================================
-CS2 COACHING REPORT SUMMARY
-==================================================
-Players analyzed: 10
-Issues found: 4
-
-Issues by category:
-  - POSITIONING: 3
-  - AIM: 1
---------------------------------------------------
-Player: 76561198064058958
-  K/D: 4.0 | HS%: 62.5%
-
-Player: 76561197963450946
-  K/D: 0.36 | HS%: 20.0%
-  Focus: headshot_percentage
-==================================================
+=== TOP 10 PLAYERS ===
+name          role    raw   rate  swing
+hypex         AWPer   87.3  95    10
+MarKE         Anchor  78.2  88    4
+Cryptic       Anchor  66.0  88    1
+REZ           Anchor  71.7  88    7
+Qlocuu        Anchor  67.0  88    7
+Sobol         Entry   70.7  81    4
+junior        AWPer   81.2  75    3  [SMURF]
+Pluto         Anchor  58.8  71    3
+Dycha         Entry   56.0  64    5
+laxiee        Anchor  41.3  53    2
 ```
 
-### AI Coaching Feedback
-> *"Player, focus on improving your positioning to reduce untradeable deaths, as you're currently experiencing an unacceptable 57.1% rate, and aim to get this number below 30%."*
+### Biggest Swing Players (Momentum Gods)
+```
+hypex   AWPer   swing=10  rate=95
+REZ     Anchor  swing=7   rate=88
+Qlocuu  Anchor  swing=7   rate=88
+```
 
-📖 **[See full report →](examples/nlp_report.md)**
+### Most Inflated (Exposed by System)
+```
+junior  AWPer   88 -> 75  (-13)  [SMURF FLAG]
+MarKE   Anchor  100 -> 88 (-12)  [ROLE CAP]
+Pluto   Anchor  81 -> 71  (-10)  [CONSISTENCY]
+```
 
 ---
 
 ## 🚀 Quick Start
 
 ### Installation
-
 ```bash
-# Clone
 git clone https://github.com/Pl4yer-ONE/cs2-ai-coach.git
 cd cs2-ai-coach
-
-# Setup environment
 python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Usage
-
+### Analyze Demos
 ```bash
-# Basic analysis
-python main.py --demo your_match.dem
+# Single demo
+python -m src.main your_match.dem --output outputs/
 
-# With AI coaching + markdown report
-python main.py --demo your_match.dem --ollama --markdown --verbose
-
-# Check available parsers
-python main.py --check-parsers
+# Batch analyze folder
+python -m src.main /path/to/demos/ --output outputs/batch
 ```
 
-### Getting Demo Files
-
-| Source | How to Get |
-|--------|------------|
-| **HLTV** | [hltv.org](https://hltv.org) → Results → Download |
-| **FACEIT** | Match history → Download demo |
-| **Your Matches** | `Steam/Counter-Strike 2/game/csgo/replays/` |
+### Generate Leaderboard
+```bash
+python leaderboard.py outputs/batch
+```
 
 ---
 
@@ -115,92 +130,52 @@ python main.py --check-parsers
 
 ```
 cs2-ai-coach/
-├── 📄 main.py              # CLI entry point
-├── ⚙️ config.py            # Thresholds & settings
-├── 📋 requirements.txt     # Dependencies
-│
-├── 📂 src/
-│   ├── parser/            # Demo parsing (demoparser2)
-│   ├── features/          # Feature extraction
-│   ├── metrics/           # Aim, positioning, utility, economy
-│   ├── classifier/        # Rule-based classification
-│   ├── nlp/               # Ollama integration
-│   └── report/            # Report generation
-│
-└── 📂 examples/
-    ├── HOW_IT_WORKS.md    # Technical deep-dive
-    ├── nlp_report.md      # Sample AI coaching report
-    └── sample_report.md   # Basic analysis report
+├── src/
+│   ├── parser/           # Demo parsing (demoparser2)
+│   ├── features/         # Feature extraction + swing kills
+│   ├── metrics/
+│   │   ├── scoring.py    # Impact + rating calculation
+│   │   └── calibration.py # Role baselines, map weights
+│   ├── classifier/       # Mistake detection
+│   └── report/           # JSON report generation
+├── leaderboard.py        # Aggregated ranking tool
+└── config.py             # Thresholds & settings
 ```
 
 ---
 
-## 🎯 Coaching Metrics
+## 🎯 Key Metrics
 
-| Category | Metric | Target | What It Measures |
-|----------|--------|--------|------------------|
-| **Aim** | Headshot % | >30% | Crosshair placement |
-| **Aim** | Spray Control | - | Damage efficiency |
-| **Positioning** | Exposed Deaths | <35% | Cover usage |
-| **Positioning** | Untradeable Deaths | <30% | Team proximity |
-| **Utility** | Flash Success | >20% | Flash effectiveness |
-| **Utility** | Nade Damage/Round | >25 | Grenade value |
-| **Economy** | Force Buy Deaths | <50% | Buy decision quality |
+| Metric | Description |
+|--------|-------------|
+| **Swing Kills** | Kills that flip man-advantage (diff <= -2 → >= -1) |
+| **KAST%** | Kill/Assist/Survived/Traded per round |
+| **Untradeable Deaths** | Deaths with no teammate nearby |
+| **Exit Frags** | Kills in lost rounds with <15s remaining |
+| **Opening Kills Won** | First blood in rounds team won |
 
 ---
 
-## 🤖 AI Integration (Optional)
+## 🔧 Calibration
 
-The AI component uses [Ollama](https://ollama.ai) to phrase feedback naturally.
-
-**Important**: AI only phrases output — it **never decides** what mistakes are.
-
-```bash
-# Install Ollama
-brew install ollama  # macOS
-
-# Pull a model
-ollama pull llama3
-
-# Run with AI
-python main.py --demo match.dem --ollama
-```
-
-Without Ollama, the system uses pre-written fallback messages.
-
----
-
-## 🔧 Configuration
-
-Edit `config.py` to customize:
+Edit `src/metrics/calibration.py`:
 
 ```python
-# Thresholds
-AIM_THRESHOLDS = {
-    "headshot_percentage": {"poor": 0.20, "average": 0.30, "good": 0.45}
+ROLE_BASELINES = {
+    'Entry':  {'mean': 42.6, 'std': 22.6, 'max': 92},
+    'Anchor': {'mean': 28.6, 'std': 24.1, 'max': 88},
+    'AWPer':  {'mean': 46.4, 'std': 22.3, 'max': 95},
 }
 
-# Ollama settings
-OLLAMA_ENABLED = False
-OLLAMA_MODEL = "llama3"
-OLLAMA_HOST = "http://localhost:11434"
+MAP_WEIGHTS = {
+    'de_nuke': {'Entry': 0.85, 'Anchor': 1.15, 'AWPer': 1.00},
+    'de_dust2': {'Entry': 1.10, 'Anchor': 0.95, 'AWPer': 1.05},
+}
 ```
-
----
-
-## 📖 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [**HOW_IT_WORKS.md**](examples/HOW_IT_WORKS.md) | Architecture & pipeline explanation |
-| [**nlp_report.md**](examples/nlp_report.md) | Sample report with AI coaching |
-| [**sample_report.md**](examples/sample_report.md) | Basic analysis report |
 
 ---
 
 ## 🤝 Contributing
-
-Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -212,25 +187,21 @@ Contributions are welcome! Please:
 
 ## 📜 Credits
 
-### Dependencies
 - [demoparser2](https://github.com/LaihoE/demoparser) - MIT License
-- [awpy](https://github.com/pnxenopoulos/awpy) - MIT License
-
-### Inspiration
-- [PureSkill.gg](https://pureskill.gg) - Data science approach to CS coaching
+- Inspired by HLTV rating methodology
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-**[⬆ Back to Top](#-cs2-ai-coach)**
+**This is not a toy. This is pro-grade analytics.**
 
-Made with ❤️ for the CS2 community
+Made for serious competitive play 🎯
 
 </div>
