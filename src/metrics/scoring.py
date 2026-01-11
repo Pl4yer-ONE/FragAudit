@@ -192,23 +192,23 @@ class ScoreEngine:
         - 80-90: Carry
         - 95+:   God
         """
-        # 1. Kill Value (CAPPED at 30)
-        kill_points = kills_in_won_rounds * 6.0 + kills_in_lost_rounds * 0.5
-        kill_points -= exit_frags * 0.5
-        kill_points = min(kill_points, 30.0)  # Cap
+        # 1. Kill Value (CAPPED at 40)
+        kill_points = kills_in_won_rounds * 8.0 + kills_in_lost_rounds * 0.5
+        kill_points -= exit_frags * 2.0  # Increased penalty
+        kill_points = min(kill_points, 40.0)  # Raised cap
         
-        # 2. Entry Points (CAPPED at 20)
-        entry_points = opening_kills_won * 10.0 + opening_kills_lost * 2.0
-        entry_points -= entry_deaths * 2.0
-        entry_points = min(entry_points, 20.0)  # Cap
+        # 2. Entry Points (CAPPED at 30)
+        entry_points = opening_kills_won * 14.0 + opening_kills_lost * 1.0  # Lost opener = low value
+        entry_points -= entry_deaths * 3.0  # Failing entry hurts
+        entry_points = min(entry_points, 30.0)  # Raised cap
         
-        # 3. Clutch Points (CAPPED at 25)
-        clutch_points = clutches_1v1 * 12.0 + clutches_1vN * 20.0
-        clutch_points += multikills * 4.0
-        clutch_points = min(clutch_points, 25.0)  # Cap
+        # 3. Clutch Points (CAPPED at 40)
+        clutch_points = clutches_1v1 * 15.0 + clutches_1vN * 35.0  # Big clutches matter
+        clutch_points += multikills * 8.0  # Multi-kill rounds matter
+        clutch_points = min(clutch_points, 40.0)  # Raised cap
         
-        # 4. Death Penalty (moderate)
-        death_penalty = tradeable_deaths * 0.5 + untradeable_deaths * 2.0
+        # 4. Death Penalty (increased)
+        death_penalty = tradeable_deaths * 0.5 + untradeable_deaths * 4.0  # Harsh
         
         # 5. Round Contribution Bonus
         round_bonus = 0.0
