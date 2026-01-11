@@ -231,7 +231,8 @@ class ScoreEngine:
 
     @staticmethod
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
-                             survival_rate: float = 0.0, opening_kills: int = 0) -> int:
+                             survival_rate: float = 0.0, opening_kills: int = 0, 
+                             kast_percentage: float = 0.5) -> int:
         """
         Compute aggregate rating with penalties.
         
@@ -254,6 +255,10 @@ class ScoreEngine:
         Other Penalties:
         - Death Tax: -0.5 per untradeable death
         
+        KAST Adjustment:
+        - KAST% < 50%: Penalty up to -10
+        - KAST% > 70%: Bonus up to +10
+        
         FULL 0-100 SCALE (no arbitrary cap)
         Bands:
         - 0-40:  Bad
@@ -270,7 +275,13 @@ class ScoreEngine:
         # 1. Death Tax
         rating -= (untradeable_deaths * 0.5)
         
-        # 2. Impact Band Caps (graduated, not binary)
+        # 2. KAST Adjustment (new)
+        # KAST 70%+ = +10, KAST 50% = 0, KAST 30% = -10
+        # Linear scale: (kast - 0.5) * 50
+        kast_adjustment = (kast_percentage - 0.5) * 20.0
+        rating += kast_adjustment
+        
+        # 3. Impact Band Caps (graduated, not binary)
         if imp <= 10:
             # Useless band - hard cap
             rating = min(rating, 30.0)
@@ -279,7 +290,7 @@ class ScoreEngine:
             rating = min(rating, 45.0)
         # 30-60 = contributor, 60+ = carry - no cap
             
-        # 3. Role-Specific Adjustments
+        # 4. Role-Specific Adjustments
         if role == "Entry" and kdr < 0.8:
             rating *= 0.75
         elif role == "AWPer":

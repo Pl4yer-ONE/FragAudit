@@ -894,6 +894,10 @@ class FeatureExtractor:
         # For each player, track KAST per round
         player_kast = {pid: set() for pid in self._player_features.keys()}  # pid -> set of round_nums with KAST
         
+        # Get flash data for assists
+        flashes_df = self.demo.flashes
+        flash_att_col = self._get_player_column(flashes_df, "attacker") if not self._is_empty(flashes_df) else None
+        
         # Process each round
         rounds_in_kills = kills_df['total_rounds_played'].unique() if 'total_rounds_played' in kills_df.columns else []
         
@@ -904,8 +908,9 @@ class FeatureExtractor:
             
             # Track kills, deaths, and trades in this round
             round_killers = set()      # Players who got kills
-            round_deaths = {}          # victim_id -> killer_id
+            round_deaths = {}          # victim_id -> (killer_id, tick)
             trade_victims = set()      # Players whose death was traded
+            flash_assisters = set()    # Players who flashed someone who died
             
             kill_list = list(round_kills.iterrows())
             
@@ -920,6 +925,22 @@ class FeatureExtractor:
                 if victim_id and not pd.isna(kill.get(vic_col)):
                     killer_id = attacker_id if attacker_id else ""
                     round_deaths[victim_id] = (killer_id, tick)
+                    
+                    # A: Check for flash assist - who flashed this victim before death?
+                    if flash_att_col and not self._is_empty(flashes_df):
+                        # Find flashes on victim within 2s before kill
+                        flash_window = 2000  # 2 seconds in ms, ~128 ticks
+                        vic_col_flash = self._get_player_column(flashes_df, "victim")
+                        if vic_col_flash and 'tick' in flashes_df.columns:
+                            recent_flashes = flashes_df[
+                                (flashes_df['tick'] >= tick - 128) & 
+                                (flashes_df['tick'] <= tick) &
+                                (flashes_df[vic_col_flash].astype(str) == victim_id)
+                            ]
+                            for _, flash in recent_flashes.iterrows():
+                                flasher = str(flash.get(flash_att_col, ""))
+                                if flasher and flasher != attacker_id:  # Not self-flash on kill
+                                    flash_assisters.add(flasher)
             
             # Check trades: if victim died but killer was killed within 3s
             for victim_id, (killer_id, death_tick) in round_deaths.items():
@@ -945,9 +966,9 @@ class FeatureExtractor:
                 if pid in round_killers:
                     got_kast = True
                 
-                # A: Flash assist (simplified - already tracked in utility)
-                # We'll credit if they blinded someone who died
-                # (Not implementing full assist tracking for now - would need flash->kill linking)
+                # A: Flash assist
+                if pid in flash_assisters:
+                    got_kast = True
                 
                 # S: Survived
                 if pid in survivors:

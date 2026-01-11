@@ -157,7 +157,8 @@ class JsonReporter:
             kdr, 
             untradeable_deaths,
             survival_rate,
-            p.entry_kills  # Opening kills
+            p.entry_kills,  # Opening kills
+            p.kast_percentage  # KAST%
         )
         
         # Process mistakes with severity weighting
