@@ -16,6 +16,7 @@ HLTV EXACT #1 MATCH:    1/5 (20%)
 HLTV TOP-2 CAPTURE:     3/5 (60%)
 HLTV TOP-3 CAPTURE:     4/5 (80%)
 JSON API FIXES:         6/6 applied
+REFINEMENT FIXES:       4/4 applied
 
 The system correctly identifies top performers 80% of the time within top-3.
 Exact MVP prediction is harder due to philosophical differences between WPA and
@@ -27,6 +28,12 @@ JSON API is now production-grade:
 - No null values
 - Metric definitions documented
 - Integer precision for heuristics
+
+Refinement Fixes Applied:
+- Role detection: AWP kills case-insensitive, 25% threshold
+- Raw impact: Soft cap at 120 (excess gets 0.3x)
+- WPA: Diminishing returns above 2.5
+- Advice: Randomized pool to avoid repetition
 
 ================================================================================
 PART 1: PROBLEM STATEMENT & USER REQUIREMENTS
