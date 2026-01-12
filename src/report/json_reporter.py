@@ -158,10 +158,10 @@ class JsonReporter:
             untradeable_deaths,
             p.tradeable_deaths,
             
-            # Stats for sanity caps
+            # Stats for sanity
             p.kills,
             kdr,
-            p.detected_role
+            role=p.detected_role  # Fixed: Pass role for exit discount logic
         )
         scores["impact"] = clamped_impact
         scores["raw_impact"] = round(raw_impact, 1)  # Store raw for calibration
@@ -180,7 +180,9 @@ class JsonReporter:
             p.kast_percentage,  # KAST%
             map_name,  # Map for difficulty weighting
             p.kills,  # NEW: for low kill cap
-            p.rounds_played  # NEW: real rounds for smurf detection
+            p.rounds_played,  # NEW: real rounds for smurf detection
+            headshot_percentage=p.headshot_percentage, # NEW: for smurf detection
+            entry_attempts=p.entry_attempts # NEW: for smurf opening success
         )
         
         # Process mistakes with severity weighting and randomized advice

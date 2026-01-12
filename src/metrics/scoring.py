@@ -242,8 +242,8 @@ class ScoreEngine:
         # REDUCED for Rotator/Trader - they naturally rotate late
         if exit_frags > 3:
             exit_discount = (exit_frags - 3) * 3.5  # HARSHER (was 2.0)
-            # Role-aware: Rotators get 60% reduced penalty (0.4x)
-            if swing_score > 5:  # Rotators have high swing kills
+            # Role-aware: Rotators/Traders get 60% reduced penalty (0.4x)
+            if role in ("Rotator", "Trader"):  # Fixed: Use role, not swing_score
                 exit_discount *= 0.4  # NERFED from 0.5
             wpa_bonus = max(0, wpa_bonus - exit_discount)
         
@@ -290,7 +290,8 @@ class ScoreEngine:
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
                              survival_rate: float = 0.0, opening_kills: int = 0, 
                              kast_percentage: float = 0.5, map_name: str = "",
-                             kills: int = 0, rounds_played: int = 20) -> int:
+                             kills: int = 0, rounds_played: int = 20,
+                             headshot_percentage: float = 0.0, entry_attempts: int = 0) -> int:
         """
         Compute final rating with brutal calibration.
         
@@ -354,26 +355,41 @@ class ScoreEngine:
         if role == "Rotator" and raw_impact < 100:
             rating *= 0.95
         
-        # 5d. KILL-GATED GOD RATING: Can't be 98 with mediocre kills
-        if raw_impact > 105 and kills < 18:
-            rating *= 0.90  # HARSHER (was 0.95 at 110)
+        # 5d. KILL-GATED GOD RATING: MOVED TO END
         
         # 6. Dynamic role cap (map-aware)
         role_cap = get_dynamic_role_cap(role, map_name)
         
         # 7. ANCHOR BREAKOUT RULE: Don't suppress legit carries
-        # GUARDED: require KDR > 1.1 AND KAST > 65%
+        # GUARDED: require KDR > 1.15 AND KAST > 70% AND KILLS >= 16
         if role in ("Anchor", "Rotator", "SiteAnchor", "Trader") and raw_impact > role_cap + 15:
-            if kdr > 1.1 and kast_percentage > 0.65:  # Must have good fundamentals
+            if kdr > 1.15 and kast_percentage > 0.70 and kills >= 16:  # Strict breakout
                 role_cap += 10
         
         rating = min(rating, role_cap)
-        
+
         # 8. SMURF DETECTION: Penalize suspicious stat-padding
-        # FIXED: Use REAL rounds_played from parameters
-        is_smurf, smurf_mult = detect_smurf(kdr, raw_impact, rounds_played=rounds_played)
+        # FIXED: Pass correct params for enhanced detection
+        opening_success = opening_kills / max(1, entry_attempts)
+        is_smurf, smurf_mult = detect_smurf(
+            kdr, raw_impact, 
+            hs_pct=headshot_percentage,
+            opening_success=opening_success,
+            rounds_played=rounds_played
+        )
         if is_smurf:
             rating *= smurf_mult  # Apply 0.92x penalty
+
+        # 9. LATE PENALTIES (After cap/smurf)
+        
+        # 9a. KILL-GATED GOD RATING: Can't be 98 with mediocre kills
+        # Applied AFTER role cap so it actually reduces final score
+        if raw_impact > 105 and kills < 18:
+            rating *= 0.90  # HARSHER (was 0.95 at 110)
+            
+        # 9b. LOW KDR HARD CAP: Bad fraggers must suffer
+        if kdr < 0.7:
+            rating = min(rating, 70.0)  # Hard ceiling
         
         # 9. LOW KILL CAP: Can't be 98 with 10 kills
         if kills < 12:
