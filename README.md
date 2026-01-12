@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.png" alt="FragAudit Logo" width="200"/>
+
 # FragAudit
 
 ### CS2 Performance Verification Engine
