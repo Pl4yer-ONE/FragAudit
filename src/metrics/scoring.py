@@ -337,6 +337,12 @@ class ScoreEngine:
         
         # 6. Dynamic role cap (map-aware)
         role_cap = get_dynamic_role_cap(role, map_name)
+        
+        # 7. ANCHOR BREAKOUT RULE: Don't suppress legit carries
+        # If raw_impact exceeds role_cap by 15+, allow breakout
+        if role in ("Anchor", "Rotator") and raw_impact > role_cap + 15:
+            role_cap += 10  # Allow breakout to cap+10
+        
         rating = min(rating, role_cap)
         
         # Clamp 0-100
