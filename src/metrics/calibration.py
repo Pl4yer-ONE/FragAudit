@@ -104,26 +104,30 @@ def get_kast_bonus(kast_pct: float) -> float:
         return (kast_pct - 0.75) * 40  # e.g., 50% = -10
 
 def detect_smurf(kdr: float, raw_impact: float, hs_pct: float = 0.0, 
-                 opening_success: float = 0.0) -> tuple:
+                 opening_success: float = 0.0, rounds_played: int = 0) -> tuple:
     """
-    Detect and PUNISH smurfs.
+    Detect and PUNISH smurfs (NERFED: less aggressive).
     
     Returns: (is_smurf, multiplier)
     - is_smurf: bool
-    - multiplier: 0.85 if smurf, 1.0 otherwise
+    - multiplier: 0.92 if smurf, 1.0 otherwise (was 0.85)
     
     Criteria:
     - KDR > 1.6
     - Impact > 80
-    - Optional: HS% > 65% or opening success > 50%
+    - rounds_played <= 18 (high volume games = NOT smurf)
     """
+    # High volume games = likely legit
+    if rounds_played > 18:
+        return (False, 1.0)
+    
     is_smurf = kdr > 1.6 and raw_impact > 80
     
     # Enhanced detection
     if hs_pct > 0.65 or opening_success > 0.5:
         is_smurf = is_smurf and True
     
-    multiplier = 0.85 if is_smurf else 1.0
+    multiplier = 0.92 if is_smurf else 1.0  # NERFED: was 0.85
     return (is_smurf, multiplier)
 
 def get_role_saturation_penalty(role: str, role_counts: dict) -> float:

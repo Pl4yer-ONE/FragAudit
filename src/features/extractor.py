@@ -169,6 +169,7 @@ class PlayerFeatures:
     """Features extracted for a single player."""
     player_id: str
     player_name: str = ""
+    team_id: str = ""  # NEW: Team identifier for proper quota enforcement
     
     # Basic stats
     kills: int = 0

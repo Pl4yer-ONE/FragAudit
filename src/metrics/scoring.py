@@ -237,10 +237,16 @@ class ScoreEngine:
             effective_wpa = 2.5 + (total_wpa - 2.5) * 0.5
         wpa_bonus = effective_wpa * 15.0
         
-        # 8. EXIT FRAG WPA DISCOUNT
+        # 8. EXIT FRAG WPA DISCOUNT (ROLE-AWARE)
         # Exit frags are low-value kills, reduce their WPA contribution
+        # REDUCED for Rotator/Trader - they naturally rotate late
         if exit_frags > 3:
             exit_discount = (exit_frags - 3) * 2.0  # Each exit frag over 3 = -2 pts
+            # Role-aware: Rotators/Traders get 50% reduced penalty
+            # (role passed via detected_role in player features, but not available here
+            #  so we use a heuristic: high swing_score = likely rotator)
+            if swing_score > 5:  # Rotators have high swing kills
+                exit_discount *= 0.5
             wpa_bonus = max(0, wpa_bonus - exit_discount)
         
         # Sum raw impact (BEFORE any caps/penalties)
@@ -346,11 +352,17 @@ class ScoreEngine:
         rating = min(rating, role_cap)
         
         # 8. SMURF DETECTION: Penalize suspicious stat-padding
-        is_smurf, smurf_mult = detect_smurf(kdr, raw_impact)
+        # NERFED: 0.92 multiplier, disabled if rounds > 18
+        rounds_played = int(1 / max(0.01, survival_rate) * opening_kills) if survival_rate > 0 else 20
+        is_smurf, smurf_mult = detect_smurf(kdr, raw_impact, rounds_played=rounds_played)
         if is_smurf:
-            rating *= smurf_mult  # Apply 0.85x penalty
+            rating *= smurf_mult  # Apply 0.92x penalty (was 0.85)
+        
+        # 9. FLOOR CLAMP: No human is 0
+        # Even silvers get 15
+        rating = max(15, rating)
         
         # Clamp 0-100
-        return int(min(100, max(0, rating)))
+        return int(min(100, rating))
 
 
