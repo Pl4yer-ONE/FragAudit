@@ -1,4 +1,4 @@
-# Changelog - CS2 Analyzer Engine
+# Changelog - FragAudit
 
 All notable changes to the CS2 AI Coach project will be documented in this file.
 
