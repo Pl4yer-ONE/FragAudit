@@ -6,7 +6,7 @@ Normalizes various raw metrics into 0-100 scores using user-defined weighted for
 from typing import Dict, Any, Tuple
 from src.metrics.calibration import (
     ROLE_BASELINES, MAP_WEIGHTS, get_opponent_multiplier,
-    get_kast_bonus, get_dynamic_role_cap
+    get_kast_bonus, get_dynamic_role_cap, detect_smurf
 )
 
 class ScoreEngine:
@@ -340,10 +340,15 @@ class ScoreEngine:
         
         # 7. ANCHOR BREAKOUT RULE: Don't suppress legit carries
         # If raw_impact exceeds role_cap by 15+, allow breakout
-        if role in ("Anchor", "Rotator") and raw_impact > role_cap + 15:
+        if role in ("Anchor", "Rotator", "SiteAnchor", "Trader") and raw_impact > role_cap + 15:
             role_cap += 10  # Allow breakout to cap+10
         
         rating = min(rating, role_cap)
+        
+        # 8. SMURF DETECTION: Penalize suspicious stat-padding
+        is_smurf, smurf_mult = detect_smurf(kdr, raw_impact)
+        if is_smurf:
+            rating *= smurf_mult  # Apply 0.85x penalty
         
         # Clamp 0-100
         return int(min(100, max(0, rating)))

@@ -1,15 +1,15 @@
 """
-Role Classifier v2.2
-Strict rule-based role detection with granular anchor split.
+Role Classifier v2.3
+Strict rule-based role detection with behavior-based differentiation.
 
 Roles:
 - Entry = takes first fights with success + flash/trade support
 - AWPer = primary AWP user
 - Support = utility focused (flashes OR blinded enemies)
-- Lurker = plays alone (>800u avg distance)
-- Rotator = mid-distance (600-800u), trades often
-- Trader = close-mid distance (250-600u), high trade involvement
-- SiteAnchor = holds site, low movement (<250u)
+- Lurker = plays alone (>650u avg distance)
+- Rotator = momentum player (swing_kills >= 2)
+- Trader = high trade involvement (tradeable_ratio > 0.35)
+- SiteAnchor = holds site, low movement (default)
 """
 
 from typing import Dict, Any, List, Tuple
@@ -22,14 +22,14 @@ class RoleClassifier:
     """
     Assigns roles based on deterministic player stats.
     
-    IMPROVED LOGIC v2.2:
+    IMPROVED LOGIC v2.3:
     1. AWPer: AWP kills > 25% + >= 2 kills
     2. Entry: top entry attempts + success rate + trade/flash support
-    3. Support: flashes > team_avg OR enemies_blinded > 3
-    4. Lurker: plays alone (>800u)
-    5. Rotator: mid-distance (600-800u), good trades
-    6. Trader: close-mid (250-600u), high trade involvement
-    7. SiteAnchor: holds site (<250u)
+    3. Support: flashes > team_avg OR enemies_blinded >= 3
+    4. Lurker: plays alone (>650u) - FIXED threshold
+    5. Rotator: swing_kills >= 2 (momentum player) - BEHAVIOR based
+    6. Trader: tradeable_ratio > 0.35 (trade-focused) - BEHAVIOR based
+    7. SiteAnchor: default site holder
     """
     
     def classify_roles(self, players: Dict[str, Any]) -> Dict[str, str]:
@@ -58,7 +58,7 @@ class RoleClassifier:
         role_candidates: Dict[str, Tuple[str, float]] = {}
         
         for pid, p in players.items():
-            role = "SiteAnchor"  # New default
+            role = "SiteAnchor"  # Default
             score = 0.0
             
             total_kills = max(1, p.kills)
@@ -70,8 +70,9 @@ class RoleClassifier:
             # Calculate trade involvement
             tradeable_ratio = p.tradeable_deaths / max(1, p.deaths)
             
-            # Get distance category
+            # Get distance and swing kills
             dist = p.avg_teammate_dist
+            swing_kills = getattr(p, 'swing_kills', 0)
             
             # Logic Hierarchy (Strict Priority)
             
@@ -84,36 +85,36 @@ class RoleClassifier:
             elif pid in top_entry_pids and entry_attempts >= 3:
                 if entry_success_rate >= 0.25 or p.entry_kills >= 2:
                     role = "Entry"
-                    # Quality score: success rate + tradeable position + flash support
+                    # Quality score: success + tradeable position + flash support
                     flash_bonus = 1.0 if p.flashes_thrown >= 2 else 0.5
-                    score = (entry_success_rate * p.entry_kills) + (tradeable_ratio * 2) + flash_bonus
+                    trade_bonus = 1.5 if tradeable_ratio >= 0.4 else 0  # Traded after entry
+                    score = (entry_success_rate * p.entry_kills) + trade_bonus + flash_bonus
                 else:
                     # Failed entry -> Trader
                     role = "Trader"
                     score = 0
                     
-            # 3. Support - utility focused (FIXED: looser criteria)
-            # Now: flashes > avg OR enemies_blinded > 3
+            # 3. Support - utility focused (looser criteria)
             elif p.flashes_thrown > avg_flashes or p.enemies_blinded >= 3:
                 role = "Support"
                 score = p.flashes_thrown + (p.enemies_blinded * 2)
                 
-            # 4. Lurker - plays completely alone
-            elif dist > 800:
+            # 4. Lurker - plays alone (FIXED: lowered to 650u)
+            elif dist > 650:
                 role = "Lurker"
                 score = dist
             
-            # 5. Rotator - mid-far distance (600-800u), good at trading
-            elif 600 < dist <= 800 and tradeable_ratio >= 0.3:
+            # 5. Rotator - momentum player (BEHAVIOR: swing_kills >= 2)
+            elif swing_kills >= 2:
                 role = "Rotator"
-                score = tradeable_ratio * dist
+                score = swing_kills * 10
                 
-            # 6. Trader - close-mid distance (250-600u)
-            elif 250 < dist <= 600:
+            # 6. Trader - high trade involvement (BEHAVIOR: tradeable_ratio > 0.35)
+            elif tradeable_ratio > 0.35:
                 role = "Trader"
                 score = tradeable_ratio * 10
                 
-            # 7. SiteAnchor - holds site (<250u), default
+            # 7. SiteAnchor - holds site (default)
             else:
                 role = "SiteAnchor"
                 score = 0
@@ -138,7 +139,7 @@ class RoleClassifier:
             candidates.sort(key=lambda x: x[1], reverse=True)
             
             for pid, _ in candidates[max_per_team:]:
-                # Demote to Trader instead of SiteAnchor
+                # Demote to Trader
                 role_candidates[pid] = ("Trader", 0)
         
         # Apply quotas
