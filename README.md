@@ -1,16 +1,15 @@
 <div align="center">
 
-# 🎯 FragAudit
+# FragAudit
 
-### *Where every frag gets audited.*
+### CS2 Performance Verification Engine
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.9.0-orange.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-26%20passing-brightgreen.svg)](tests/)
 
-**Production-grade CS2 demo analysis engine.**  
-*Accurate ratings. Real insights. Zero fluff.*
+**Brutal, telemetry-driven performance audits. No hallucinations.**
 
 ---
 
