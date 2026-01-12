@@ -182,7 +182,8 @@ class JsonReporter:
             p.kills,  # NEW: for low kill cap
             p.rounds_played,  # NEW: real rounds for smurf detection
             headshot_percentage=p.headshot_percentage, # NEW: for smurf detection
-            entry_attempts=p.entry_attempts # NEW: for smurf opening success
+            entry_attempts=p.entry_attempts, # NEW: for smurf opening success
+            exit_frags=p.exit_frags  # NEW: for exit frag tax
         )
         
         # Process mistakes with severity weighting and randomized advice

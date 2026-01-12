@@ -291,7 +291,8 @@ class ScoreEngine:
                              survival_rate: float = 0.0, opening_kills: int = 0, 
                              kast_percentage: float = 0.5, map_name: str = "",
                              kills: int = 0, rounds_played: int = 20,
-                             headshot_percentage: float = 0.0, entry_attempts: int = 0) -> int:
+                             headshot_percentage: float = 0.0, entry_attempts: int = 0,
+                             exit_frags: int = 0) -> int:
         """
         Compute final rating with brutal calibration.
         
@@ -386,14 +387,22 @@ class ScoreEngine:
         # Applied AFTER role cap so it actually reduces final score
         if raw_impact > 105 and kills < 18:
             rating *= 0.90  # HARSHER (was 0.95 at 110)
-            
-        # 9b. LOW KDR HARD CAP: Bad fraggers must suffer
-        if kdr < 0.7:
-            rating = min(rating, 70.0)  # Hard ceiling
         
-        # 9. LOW KILL CAP: Can't be 98 with 10 kills
-        if kills < 12:
+        # 9b. ROTATOR CEILING: Impact multipliers, not stars
+        if role == "Rotator":
+            rating = min(rating, 95)
+            
+        # 9c. LOW KDR SOFT CAP: 0.8 KDR = max 75
+        if kdr < 0.8:
             rating = min(rating, 75)
+        
+        # 9d. TRADER HARD CEILING: Can't be 80+ with sub-1.0 KDR
+        if role == "Trader" and kdr < 1.0:
+            rating = min(rating, 80)
+            
+        # 9e. EXIT FRAG TAX: Stat padding punishment
+        if exit_frags >= 8:
+            rating *= 0.85
         
         # 10. FLOOR CLAMP: No human is 0
         rating = max(15, rating)
