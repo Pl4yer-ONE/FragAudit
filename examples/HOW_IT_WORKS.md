@@ -29,7 +29,7 @@ A technical walkthrough of the CS2 coaching pipeline with real demo results.
                               │  └─────────┘ └─────────────┘ └─────────┘ └─────────┘    │
                               └────────────────────────────┬────────────────────────────┘
                                                            │
-                              ┌─────────────────────────────▼─────────────────────────────┐
+                              ┌────────────────────────────▼──────────────────────--───────┐
                               │                  Mistake Classifier                        │
                               │  • Rule-based thresholds                                   │
                               │  • Confidence scoring                                      │
