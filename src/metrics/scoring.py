@@ -213,8 +213,12 @@ class ScoreEngine:
         clutch_points += multikills * 8.0  # Multi-kill rounds matter
         clutch_points = min(clutch_points, 40.0)  # Raised cap
         
-        # 4. Death Penalty (increased)
+        # 4. Death Penalty (increased + progressive)
         death_penalty = tradeable_deaths * 0.5 + untradeable_deaths * 4.0  # Harsh
+        # PROGRESSIVE: 20+ deaths = extra punishment
+        total_deaths = tradeable_deaths + untradeable_deaths
+        if total_deaths >= 20:
+            death_penalty += (total_deaths - 19) * 3.0  # Each death over 19 = -3 extra
         
         # 5. Round Contribution Bonus
         round_bonus = 0.0
@@ -228,6 +232,12 @@ class ScoreEngine:
         # 7. WPA BONUS (Win Probability Added)
         # 1.0 WPA = 15.0 pts (1 full round win contrib = high value)
         wpa_bonus = total_wpa * 15.0
+        
+        # 8. EXIT FRAG WPA DISCOUNT
+        # Exit frags are low-value kills, reduce their WPA contribution
+        if exit_frags > 3:
+            exit_discount = (exit_frags - 3) * 2.0  # Each exit frag over 3 = -2 pts
+            wpa_bonus = max(0, wpa_bonus - exit_discount)
         
         # Sum raw impact (BEFORE any caps/penalties)
         raw_before_caps = kill_points + entry_points + clutch_points + round_bonus + swing_bonus + wpa_bonus - death_penalty
@@ -247,8 +257,19 @@ class ScoreEngine:
         if kdr < 0.8 and processed > 60:
             processed = 60.0
         
-        # Allow full negative range for bad players
-        clamped = int(min(100, max(-50, processed)))
+        # 8. MULTIPLICATIVE DEATH TAX (high deaths = hard cap)
+        # Even carries can't hit 100 if dying too much
+        total_deaths = tradeable_deaths + untradeable_deaths
+        if total_deaths >= 24:
+            processed *= 0.50  # -50% for extreme feeding
+        elif total_deaths >= 21:
+            processed *= 0.60  # -40% for heavy feeding  
+        elif total_deaths >= 18:
+            processed *= 0.80  # -20% for high deaths
+        
+        # DISPLAY CLAMP: [0, 100] for UI
+        # (true_raw is kept for calibration, can be negative)
+        clamped = int(min(100, max(0, processed)))
         
         # Return (raw, clamped) for calibration
         return (true_raw, clamped)
