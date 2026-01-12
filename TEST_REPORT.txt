@@ -1,0 +1,28 @@
+
+CS2 AI COACH - TEST REPORT
+===========================
+Generated: 2026-01-12 06:44:16
+Python: 3.13.2
+Platform: macOS
+
+RESULTS
+-------
+[PASS] T1: Module Imports: All 4 critical modules imported
+[PASS] T2: WinProb 5v5: 5v5 = 0.50 (expected 0.50)
+[PASS] T3: WinProb 5v5 Retake: 5v5 retake = 0.40 (expected <0.50)
+[PASS] T4: PlayerFeatures Fields: total_wpa, swing_kills, swing_score present
+[PASS] T5: ScoreEngine Signature: swing_score, total_wpa in params
+[PASS] T6: ParsedDemo.bomb: bomb DataFrame field exists
+[PASS] T7: JSON Top-Level: meta + 10 players
+[PASS] T8: JSON Player Fields: wpa, swing_kills, raw_impact present
+[PASS] T9: WPA Non-Zero: 10/10 players have WPA
+[PASS] T10: Leaderboard Runs: 20 players aggregated
+[PASS] T11: Pytest Suite: 12 passed, 0 failed
+
+SUMMARY
+-------
+Total:  11
+Passed: 11
+Failed: 0
+
+STATUS: ALL TESTS PASSED
