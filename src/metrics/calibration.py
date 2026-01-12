@@ -5,13 +5,16 @@ All rating calibration data in one place.
 
 # Role-based calibration data (from 60 players across 6 demos)
 # TIGHTENED: Anchor std reduced to improve rating spread
+# v2.2: Split Anchor into SiteAnchor + Trader
 ROLE_BASELINES = {
-    'Entry':   {'mean': 42.6, 'std': 22.6, 'max': 92},
-    'Anchor':  {'mean': 28.6, 'std': 19.3, 'max': 88},   # std * 0.8 = tighter spread
-    'AWPer':   {'mean': 46.4, 'std': 22.3, 'max': 95},
-    'Support': {'mean': 35.0, 'std': 23.0, 'max': 90},
-    'Lurker':  {'mean': 35.0, 'std': 23.0, 'max': 90},
-    'Rotator': {'mean': 38.0, 'std': 21.0, 'max': 90},   # NEW: mid-distance trader
+    'Entry':      {'mean': 42.6, 'std': 22.6, 'max': 92},
+    'AWPer':      {'mean': 46.4, 'std': 22.3, 'max': 95},
+    'Support':    {'mean': 35.0, 'std': 23.0, 'max': 90},
+    'Lurker':     {'mean': 35.0, 'std': 23.0, 'max': 90},
+    'Rotator':    {'mean': 38.0, 'std': 21.0, 'max': 90},
+    'Trader':     {'mean': 32.0, 'std': 20.0, 'max': 88},   # Mid-distance trader
+    'SiteAnchor': {'mean': 28.6, 'std': 19.3, 'max': 85},   # Lowest ceiling
+    'Anchor':     {'mean': 28.6, 'std': 19.3, 'max': 88},   # Legacy fallback
 }
 
 # Dynamic role caps per map (anchors on Nuke deserve more ceiling)

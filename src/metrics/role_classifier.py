@@ -1,19 +1,20 @@
 """
-Role Classifier
-Strict rule-based role detection with per-team quotas.
+Role Classifier v2.2
+Strict rule-based role detection with realistic team compositions.
 
 Roles:
 - Entry = takes first fights with success
 - AWPer = primary AWP user
-- Support = utility focused
+- Support = utility focused (flashes OR blinds)
 - Lurker = plays alone (>800u avg distance)
-- Rotator = mid-distance, trades often (NEW)
-- Anchor = site holder, low movement (default)
+- Rotator = mid-distance, trades often (600-800u)
+- Trader = close-mid distance, trades (250-600u)
+- SiteAnchor = holds site, minimal movement (<250u)
 """
 
 from typing import Dict, Any, List, Tuple
 
-# Role quotas per team (realistic constraints)
+# Role quotas per team
 MAX_AWPERS_PER_TEAM = 1
 MAX_ENTRIES_PER_TEAM = 2
 
@@ -21,13 +22,10 @@ class RoleClassifier:
     """
     Assigns roles based on deterministic player stats.
     
-    IMPROVED LOGIC v2.1.1:
-    1. AWP Kills > 25% of total -> AWPer (max 1 per team)
-    2. Entry: top entry attempts + success rate OR kills
-    3. Support: utility focused (>1.2x avg flashes)
-    4. Lurker: plays alone (>800u avg teammate dist)
-    5. Rotator: mid-distance (400-800u), good trade rate (NEW)
-    6. Anchor: default site holder
+    v2.2 IMPROVEMENTS:
+    1. Split Anchor into SiteAnchor (<250u) and Trader (250-600u)
+    2. Support: flashes > team_avg OR enemies_blinded > 3
+    3. Entry scoring includes traded_after_death consideration
     """
     
     def classify_roles(self, players: Dict[str, Any]) -> Dict[str, str]:
@@ -40,22 +38,23 @@ class RoleClassifier:
         if count == 0: 
             return {}
         
-        # Calculate averages
+        # Calculate team averages
         total_flashes = sum(p.flashes_thrown for p in players.values())
         avg_flashes = total_flashes / count
         
-        avg_teammate_dist_lobby = sum(p.avg_teammate_dist for p in players.values()) / count
+        total_blinds = sum(p.enemies_blinded for p in players.values())
+        avg_blinds = total_blinds / count
         
         # Get entry thresholds - top 4 by entry_attempts
         entry_data = [(pid, p.entry_kills + p.entry_deaths) for pid, p in players.items()]
         entry_data.sort(key=lambda x: x[1], reverse=True)
         top_entry_pids = set(pid for pid, _ in entry_data[:4])
         
-        # PHASE 1: Initial role assignment with scores
+        # PHASE 1: Initial role assignment
         role_candidates: Dict[str, Tuple[str, float]] = {}
         
         for pid, p in players.items():
-            role = "Anchor"
+            role = "SiteAnchor"  # Default: site holder
             score = 0.0
             
             total_kills = max(1, p.kills)
@@ -64,7 +63,7 @@ class RoleClassifier:
             entry_attempts = p.entry_kills + p.entry_deaths
             entry_success_rate = p.entry_kills / max(1, entry_attempts)
             
-            # Calculate trade involvement
+            # Trade involvement
             tradeable_ratio = p.tradeable_deaths / max(1, p.deaths)
             
             # Logic Hierarchy (Strict Priority)
@@ -74,35 +73,39 @@ class RoleClassifier:
                 role = "AWPer"
                 score = p.awp_kills * awp_ratio
                 
-            # 2. Entry - must have volume AND success
+            # 2. Entry - volume + success + trade context
             elif pid in top_entry_pids and entry_attempts >= 3:
                 if entry_success_rate >= 0.25 or p.entry_kills >= 2:
                     role = "Entry"
-                    # Better score: consider trade success and flash support
-                    score = (entry_success_rate * p.entry_kills) + (tradeable_ratio * 2)
+                    # Quality score: success + tradeable + flash support potential
+                    score = (entry_success_rate * p.entry_kills * 2) + (tradeable_ratio * 3)
                 else:
-                    # Failed entry = Anchor
-                    role = "Anchor"
+                    role = "SiteAnchor"
                     score = 0
                     
-            # 3. Support - utility focused
-            elif p.flashes_thrown > avg_flashes * 1.2 and p.flashes_thrown >= 3:
+            # 3. Support - utility focused (RELAXED: OR logic)
+            elif p.flashes_thrown > avg_flashes or p.enemies_blinded > 3:
                 role = "Support"
-                score = p.flashes_thrown
+                score = p.flashes_thrown + (p.enemies_blinded * 2)
                 
             # 4. Lurker - plays completely alone
             elif p.avg_teammate_dist > 800:
                 role = "Lurker"
                 score = p.avg_teammate_dist
             
-            # 5. Rotator - mid-distance, good at trading (NEW)
-            elif 400 < p.avg_teammate_dist <= 800 and tradeable_ratio >= 0.4:
+            # 5. Rotator - far-mid distance (600-800u)
+            elif 600 < p.avg_teammate_dist <= 800:
                 role = "Rotator"
                 score = tradeable_ratio * p.avg_teammate_dist
+            
+            # 6. Trader - mid-distance, trades often (250-600u)
+            elif 250 < p.avg_teammate_dist <= 600 and tradeable_ratio >= 0.3:
+                role = "Trader"
+                score = tradeable_ratio * 100
                 
-            # 6. Default - Anchor (site holder)
+            # 7. SiteAnchor - holds site, low movement (<250u)
             else:
-                role = "Anchor"
+                role = "SiteAnchor"
                 score = 0
                 
             role_candidates[pid] = (role, score)
@@ -115,7 +118,7 @@ class RoleClassifier:
         team2_pids = set(all_pids[team_size:])
         
         def apply_quota_per_team(role_name: str, max_per_team: int, team_pids: set):
-            """Demote excess role holders in a single team."""
+            """Demote excess role holders."""
             candidates = [(pid, score) for pid, (role, score) in role_candidates.items() 
                          if role == role_name and pid in team_pids]
             
@@ -125,8 +128,7 @@ class RoleClassifier:
             candidates.sort(key=lambda x: x[1], reverse=True)
             
             for pid, _ in candidates[max_per_team:]:
-                # Demote to Rotator instead of straight to Anchor
-                role_candidates[pid] = ("Rotator", 0)
+                role_candidates[pid] = ("Trader", 0)  # Demote to Trader
         
         # Apply quotas
         apply_quota_per_team("AWPer", MAX_AWPERS_PER_TEAM, team1_pids)
