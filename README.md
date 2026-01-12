@@ -11,104 +11,120 @@
 
 **Forensic demo analysis. Exploit-resistant ratings. Visual playback.**
 
----
-
-[Installation](#installation) • [Demo Player](#demo-player) • [Analysis](#analysis) • [Roadmap](#roadmap) • [API](#api-reference)
-
 </div>
 
 ---
 
-## What is FragAudit?
+## Abstract
 
-FragAudit is a **forensic analysis engine** for Counter-Strike 2 demos. It combines:
-
-- **Performance Auditing** — Telemetry-driven ratings with exploit resistance
-- **Visual Playback** — Watch demos without CS2 installed
-- **Role Detection** — AWPer, Entry, Trader, Rotator, Anchor from behavior
-
-No magic numbers. No inflated stats. Just **audited performance**.
+FragAudit is a deterministic performance auditing engine for Counter-Strike 2 demo analysis. The system implements Win Probability Added (WPA)-based impact scoring, exploit-resistant rating calibration, and visual demo playback without requiring the game client. This tool addresses critical gaps in existing esports analytics by providing transparent, reproducible performance metrics.
 
 ---
 
-## Demo Player
+## I. Introduction
 
-**NEW in v3.0.0** — Standalone demo playback without CS2.
+### A. Problem Statement
+
+Existing CS2 analytics suffer from:
+- **Inflated Metrics** — Exit frags artificially boost stats
+- **Role Blindness** — Support and Entry players evaluated identically
+- **Exploit Vulnerability** — Stat padding through exit hunting
+
+### B. Solution
+
+FragAudit provides:
+- Deterministic, exploit-resistant rating algorithms
+- Behavior-based role classification
+- WPA-weighted impact scoring
+- Visual demo playback without CS2 installation
+
+---
+
+## II. Demo Player
+
+<div align="center">
+
+![Demo Player - DE_DUST2](docs/demo_player.png)
+
+*Visual playback showing Round 1 on DE_DUST2. Blue = CT, Orange = T. Player names and positions rendered in real-time.*
+
+</div>
+
+### Usage
 
 ```bash
 python main.py play match/demo.dem
 ```
 
-<table>
-<tr><td><b>Control</b></td><td><b>Action</b></td></tr>
-<tr><td>Space</td><td>Play/Pause</td></tr>
-<tr><td>←/→</td><td>Seek 5 seconds</td></tr>
-<tr><td>↑/↓</td><td>Previous/Next round</td></tr>
-<tr><td>+/-</td><td>Speed control (0.25x–4x)</td></tr>
-<tr><td>1-9</td><td>Jump to round</td></tr>
-<tr><td>ESC</td><td>Quit</td></tr>
-</table>
+### Controls
 
-**Features:**
+| Key | Action |
+|-----|--------|
+| Space | Play/Pause |
+| ← / → | Seek 5 seconds |
+| ↑ / ↓ | Previous/Next round |
+| + / - | Speed (0.25x–4x) |
+| 1-9 | Jump to round |
+| ESC | Quit |
+
+### Technical Specifications
+
 - Dynamic tickrate detection (64/128 tick)
-- O(log n) tick lookup with binary search
-- LRU cache for smooth playback
-- Delta-time clamped for stability
+- O(log n) tick lookup via binary search
+- 500-entry LRU cache for smooth playback
+- Delta-time clamping (100ms max) for stability
 
 ---
 
-## Installation
+## III. Analysis Engine
 
-### Quick Install (Recommended)
-
-```bash
-curl -sSL https://raw.githubusercontent.com/Pl4yer-ONE/FragAudit/main/install.sh | bash
-```
-
-### Manual Install
+### A. Demo Analysis
 
 ```bash
-git clone https://github.com/Pl4yer-ONE/FragAudit.git
-cd FragAudit
-
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-pip install -r requirements.txt
+python main.py analyze --demo match.dem --markdown -v
 ```
+
+### B. Sample Output
+
+```
+Parsing demo file...
+  Parser used: demoparser2
+  Kills found: 143
+  Damages found: 541
+  Players analyzed: 10
+
+==================================================
+CS2 COACHING REPORT SUMMARY
+==================================================
+Players analyzed: 10
+Issues found: 6
+
+Issues by type:
+  - dry_peek: 6
+
+Player: KalubeR  K/D: 1.64 | HS%: 69.6%
+Player: shaiK    K/D: 1.69 | HS%: 72.7%
+==================================================
+```
+
+### C. Mistake Detection
+
+| Mistake Type | Trigger Condition | Severity |
+|--------------|-------------------|----------|
+| `dry_peek` | Peeked without flash support | 0.70 |
+| `dry_peek_awp` | Dry peeked into AWP | 0.95 |
+| `untradeable_death` | Died >400u from teammates | 0.85 |
+| `bad_spacing_clump` | Died stacked on 2+ teammates | 0.65 |
+| `solo_late_round` | Died alone in late round | 0.75 |
 
 ---
 
-## Analysis
+## IV. Rating System
 
-### Analyze Demo
-```bash
-python main.py analyze --demo match.dem
-```
+### A. Score Bands
 
-### Generate Reports
-```bash
-python main.py analyze --demo match.dem --output report.json --markdown
-```
-
-### Generate Heatmaps
-```bash
-python main.py analyze --demo match.dem --heatmap
-```
-
-### Check Parser Status
-```bash
-python main.py check-parsers
-```
-
----
-
-## Rating System
-
-### Score Bands
-
-| Rating | Meaning |
-|--------|---------|
+| Rating | Classification |
+|--------|---------------|
 | 95-100 | Elite |
 | 85-94 | Carry |
 | 70-84 | Strong |
@@ -116,20 +132,20 @@ python main.py check-parsers
 | 30-49 | Below Average |
 | 15-29 | Liability |
 
-### Anti-Exploit Rules
+### B. Anti-Exploit Calibration
 
 | Rule | Trigger | Effect |
 |------|---------|--------|
-| Kill Gate | raw > 105, kills < 18 | 0.90x |
-| Exit Tax | exits >= 8 | 0.85x |
+| Kill Gate | raw > 105, kills < 18 | 0.90× |
+| Exit Tax | exits ≥ 8 | 0.85× |
 | Low KDR Cap | KDR < 0.8 | max 75 |
 | Trader Ceiling | Trader, KDR < 1.0 | max 80 |
 | Rotator Ceiling | Rotator role | max 95 |
-| Floor | Always | min 15 |
+| Floor Clamp | Always | min 15 |
 
 ---
 
-## Architecture
+## V. System Architecture
 
 ```mermaid
 graph TD
@@ -148,17 +164,45 @@ graph TD
     Report -->|JSON/MD| Output[Output Files]
 ```
 
-## Demo Preview
+---
 
-![Demo Player Preview](docs/demo_preview.gif)
+## VI. Installation
 
-> *Visual playback of a Dust2 match running at 64 tick.*
+### Quick Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Pl4yer-ONE/FragAudit/main/install.sh | bash
+```
+
+### Manual Install
+
+```bash
+git clone https://github.com/Pl4yer-ONE/FragAudit.git
+cd FragAudit
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Verify Installation
+
+```bash
+python main.py check-parsers
+```
+
+Expected output:
+```
+CS2 Demo Parser Status
+------------------------------
+  demoparser2: ✓ Available
+```
 
 ---
 
-## API Reference
+## VII. API Reference
 
 ### Demo Player
+
 ```python
 from src.player import DemoPlayer, Renderer
 
@@ -168,6 +212,7 @@ renderer.run()
 ```
 
 ### Score Engine
+
 ```python
 from src.metrics.scoring import ScoreEngine
 
@@ -180,41 +225,43 @@ rating = ScoreEngine.compute_final_rating(
 )
 ```
 
-### Player Tracker
-```python
-from src.analytics.player_tracker import PlayerTracker
-
-tracker = PlayerTracker()
-tracker.load_directory("./outputs")
-comparison = tracker.compare_players()
-```
-
 ---
 
-## Testing
+## VIII. Testing
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-26 tests covering calibration, caps, and edge cases.
+```
+============================== 26 passed in 0.56s ==============================
+```
+
+Test coverage includes:
+- Exit frag tax triggers
+- Low KDR cap enforcement
+- Rotator ceiling validation
+- Kill gate activation
+- Smurf detection logic
 
 ---
 
-## Performance
+## IX. Documentation
 
-| Metric | Value |
-|--------|-------|
-| Tick lookup | O(log n) binary search |
-| Cache | 500-entry LRU |
-| Frame skip | Scales with speed |
-| dt clamp | 100ms max (stability) |
+| Document | Description |
+|----------|-------------|
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
+| [COMMERCIAL.md](COMMERCIAL.md) | Commercial licensing terms |
+| [ROADMAP.md](ROADMAP.md) | Future development plans |
+| [docs/RELEASE_GUIDE.md](docs/RELEASE_GUIDE.md) | Release process |
+| [docs/doc_main.md](docs/doc_main.md) | Technical paper (IEEE format) |
 
 ---
 
-## License
+## X. License
 
-FragAudit is licensed under the **PolyForm Noncommercial License 1.0.0**.
+FragAudit is licensed under **PolyForm Noncommercial License 1.0.0**.
 
 Commercial use is **strictly prohibited** without explicit written permission.
 

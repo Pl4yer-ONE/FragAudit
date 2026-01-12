@@ -22,6 +22,7 @@ Thumbs.db
 outputs/
 reports/
 *.png
+!docs/*.png
 *.json
 !package.json
 
