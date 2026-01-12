@@ -74,7 +74,8 @@ class JsonReporter:
                 "metric_definitions": {
                     "wpa": "Per-match sum of round win probability deltas caused by player kills",
                     "final_rating": "Composite score (0-100) combining impact, aim, positioning with role adjustments",
-                    "raw_impact": "Unclamped impact score before caps/multipliers (for calibration)"
+                    "raw_impact": "Unclamped impact score before caps/multipliers (for calibration)",
+                    "confidence": "Rating reliability (0-100) based on rounds played, engagements, and KAST coverage"
                 }
             },
             "players": {},
@@ -208,10 +209,20 @@ class JsonReporter:
             elif isinstance(heatmaps, dict):
                 player_heatmaps = self._to_relative_paths(heatmaps)
 
+        # CONFIDENCE SCORE: 0-100 based on sample size and data quality
+        # Factors: rounds played, kills, deaths, KAST rounds
+        rounds_factor = min(1.0, p.rounds_played / 20)  # Full confidence at 20+ rounds
+        engagement_factor = min(1.0, (p.kills + p.deaths) / 15)  # Need engagements for data
+        kast_factor = min(1.0, p.kast_rounds / max(1, p.rounds_played))  # KAST coverage
+        
+        confidence = int(round((rounds_factor * 0.5 + engagement_factor * 0.3 + kast_factor * 0.2) * 100))
+        confidence = min(100, max(0, confidence))
+
         return {
             "name": p.player_name,
             "role": p.detected_role,
             "final_rating": overall_rating,
+            "confidence": confidence,  # NEW: 0-100 confidence in rating accuracy
             "scores": scores,
             "stats": {
                 "kills": p.kills,

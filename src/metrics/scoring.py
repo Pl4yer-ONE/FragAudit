@@ -285,8 +285,7 @@ class ScoreEngine:
     @staticmethod
     def compute_final_rating(scores: Dict[str, int], role: str, kdr: float, untradeable_deaths: int,
                              survival_rate: float = 0.0, opening_kills: int = 0, 
-                             kast_percentage: float = 0.5, map_name: str = "",
-                             opponent_avg: float = 50.0) -> int:
+                             kast_percentage: float = 0.5, map_name: str = "") -> int:
         """
         Compute final rating with brutal calibration.
         
@@ -294,10 +293,12 @@ class ScoreEngine:
         1. raw_impact
         2. role_zscore
         3. map_weight
-        4. opponent_weight
-        5. kast_adjustment
-        6. role_penalties
-        7. role_cap (anchors NEVER top leaderboard unless god-tier)
+        4. kast_adjustment
+        5. role_penalties
+        6. role_cap (anchors NEVER top leaderboard unless god-tier)
+        
+        NOTE: opponent_avg removed - was hardcoded to 50 (fake complexity).
+        Will reintroduce when real opponent data is available.
         
         Bands:
         - 0-30:  Trash
@@ -321,10 +322,6 @@ class ScoreEngine:
         map_weights = MAP_WEIGHTS.get(map_name, {})
         map_factor = map_weights.get(role, 1.0)
         rating *= map_factor
-        
-        # 3. Opponent strength adjustment (smooth formula)
-        strength_factor = get_opponent_multiplier(opponent_avg)
-        rating *= strength_factor
         
         # 4. KAST adjustment (NONLINEAR)
         kast_adjustment = get_kast_bonus(kast_percentage)

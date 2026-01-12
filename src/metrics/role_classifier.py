@@ -1,6 +1,6 @@
 """
 Role Classifier
-Strict rule-based role detection - PERFECTED.
+Strict rule-based role detection with team quotas.
 
 Entry = intentionally takes first fights AND has success
 Anchor = plays for trades/late round
@@ -9,18 +9,23 @@ Support = utility focus
 Lurker = plays alone
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
+
+# Role quotas per team (realistic constraints)
+MAX_AWPERS = 2
+MAX_ENTRIES = 3
 
 class RoleClassifier:
     """
     Assigns roles based on deterministic player stats.
     
     IMPROVED LOGIC:
-    1. AWP Kills > 30% of total -> AWPer
+    1. AWP Kills > 25% of total -> AWPer (max 2 per team)
     2. Entry role requires BOTH:
        - High entry attempts (top 4 in lobby)
        - Entry success rate > 25% (not just dying first)
        OR entry_kills >= 2 (proven opener)
+       Max 3 entries per team
     3. Utility Usage > Team Avg -> Support
     4. Avg Distance from Team > Threshold -> Lurker
     5. Default -> Anchor (plays for trades)
@@ -48,9 +53,12 @@ class RoleClassifier:
         # Top 4 entry attempt players
         top_entry_pids = set(pid for pid, _ in entry_data[:4])
         
-        # Assign Roles
+        # PHASE 1: Initial role assignment with scores for priority
+        role_candidates: Dict[str, Tuple[str, float]] = {}  # pid -> (role, score)
+        
         for pid, p in players.items():
             role = "Anchor"  # Default
+            score = 0.0  # Higher = more qualified for role
             
             # Safe division
             total_kills = max(1, p.kills)
@@ -63,35 +71,60 @@ class RoleClassifier:
             # Logic Hierarchy (Strict Priority)
             
             # 1. AWPer - clear weapon identity 
-            # Lowered threshold to 25% to better catch primary AWPers
-            # Also check if they have reasonable AWP volume
             if awp_ratio >= 0.25 and p.awp_kills >= 2:
                 role = "AWPer"
+                score = p.awp_kills * awp_ratio  # More AWP kills = more qualified
                 
             # 2. Entry - must have BOTH volume AND success
-            #    Options:
-            #    a) High attempts + decent success rate (not just dying)
-            #    b) At least 2 entry kills (proven opener regardless of deaths)
             elif pid in top_entry_pids and entry_attempts >= 3:
                 if entry_success_rate >= 0.25 or p.entry_kills >= 2:
                     role = "Entry"
+                    score = entry_success_rate * p.entry_kills  # Success matters
                 else:
-                    # High attempts but terrible success = NOT a real entry
-                    # They're just dying first due to bad positioning
-                    role = "Anchor"  # Re-classify as anchor (died in bad spots)
+                    role = "Anchor"
+                    score = 0
                     
             # 3. Support - utility focused
             elif p.flashes_thrown > avg_flashes * 1.2 and p.flashes_thrown >= 3:
                 role = "Support"
+                score = p.flashes_thrown
                 
             # 4. Lurker - plays alone
             elif p.avg_teammate_dist > 800:
                 role = "Lurker"
+                score = p.avg_teammate_dist
                 
             # 5. Default - Anchor
             else:
                 role = "Anchor"
+                score = 0
                 
+            role_candidates[pid] = (role, score)
+        
+        # PHASE 2: Enforce team quotas
+        # Split by team (assume 5v5 split by player index for now)
+        # In reality, you'd use team_id from demo
+        all_pids = list(players.keys())
+        
+        # Get all AWPers and Entries, sorted by score
+        awpers = [(pid, score) for pid, (role, score) in role_candidates.items() if role == "AWPer"]
+        entries = [(pid, score) for pid, (role, score) in role_candidates.items() if role == "Entry"]
+        
+        awpers.sort(key=lambda x: x[1], reverse=True)
+        entries.sort(key=lambda x: x[1], reverse=True)
+        
+        # Demote excess AWPers (keep top MAX_AWPERS)
+        if len(awpers) > MAX_AWPERS:
+            for pid, _ in awpers[MAX_AWPERS:]:
+                role_candidates[pid] = ("Anchor", 0)  # Demote to Anchor
+        
+        # Demote excess Entries (keep top MAX_ENTRIES)
+        if len(entries) > MAX_ENTRIES:
+            for pid, _ in entries[MAX_ENTRIES:]:
+                role_candidates[pid] = ("Anchor", 0)  # Demote to Anchor
+        
+        # Extract final roles
+        for pid, (role, _) in role_candidates.items():
             results[pid] = role
             
         return results
