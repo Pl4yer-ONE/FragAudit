@@ -1,4 +1,4 @@
-# Contributing to CS2 AI Coach
+# Contributing to CS2 Analyzer Engine
 
 Thank you for your interest in contributing to CS2 AI Coach.
 

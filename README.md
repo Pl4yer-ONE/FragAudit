@@ -1,57 +1,73 @@
-# CS2 AI Coach
+# CS2 Analyzer Engine
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.9.0-orange.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-14%2F14%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-26%20passing-brightgreen.svg)](tests/)
 
-Advanced performance analytics engine for Counter-Strike 2 demo files. Provides production-grade player ratings, role classification, and coaching feedback through deep statistical analysis.
+Production-grade performance analytics engine for Counter-Strike 2 demo files. Delivers accurate player ratings, role classification, cross-match comparison, and trend tracking through deep statistical analysis.
 
-## Features
+---
 
-- **Role Classification** — Automatic detection of player roles (AWPer, Entry, Trader, Rotator, Anchor) using behavioral analysis
-- **Impact Rating** — Composite 0-100 score combining kills, entries, clutches, WPA, and death context
-- **Exploit Resistance** — Calibrated penalties for exit farming, low KDR inflation, and stat padding
-- **Coaching Feedback** — Mistake detection with actionable drill recommendations
-- **Heatmap Generation** — Visual position analysis per player and phase
+## Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **Role Classification** | Automatic detection (AWPer, Entry, Trader, Rotator, Anchor) using behavioral analysis |
+| **Impact Rating** | Composite 0-100 score from kills, entries, clutches, WPA, death context |
+| **Player Comparison** | Track same player across multiple demos with trend analysis |
+| **Consistency Scoring** | Measure rating variance across matches |
+| **Exploit Resistance** | Calibrated penalties for exit farming, stat padding, inflation |
+| **Coaching Feedback** | Evidence-based mistake detection with drill recommendations |
+
+---
 
 ## Installation
 
 ```bash
-# Clone repository
 git clone https://github.com/Pl4yer-ONE/cs2-ai-coach.git
 cd cs2-ai-coach
 
-# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Quick Start
+---
 
+## Usage
+
+### Single Demo Analysis
 ```bash
-# Analyze a single demo
-python -m src.main path/to/demo.dem --output ./output
-
-# Batch process multiple demos
-python -m src.main path/to/demos/ --output ./output
+python -m src.main demo.dem --output ./output
 ```
+
+### Batch Processing
+```bash
+python -m src.main ./demos/ --output ./output
+```
+
+### Player Comparison (Cross-Demo)
+```bash
+python -m src.analytics.player_tracker ./output
+```
+
+---
 
 ## Output Structure
 
 ```
 output/
-├── demo-name/
+├── match-name/
 │   ├── reports/
-│   │   └── match_report_demo-name.json
+│   │   └── match_report_*.json
 │   └── heatmaps/
-│       └── map-name/
-│           ├── kills_player.png
-│           └── deaths_player.png
+│       └── map-name/*.png
+└── player_comparison.json
 ```
+
+---
 
 ## Rating System
 
@@ -59,60 +75,55 @@ output/
 
 | Rating | Classification |
 |--------|----------------|
-| 95-100 | Elite (rare) |
+| 95-100 | Elite |
 | 85-94 | Carry |
 | 70-84 | Strong |
 | 50-69 | Average |
 | 30-49 | Below Average |
 | 15-29 | Liability |
 
-### Role Caps
-
-| Role | Maximum Rating | Notes |
-|------|---------------|-------|
-| AWPer | 95 | Requires positive KDR |
-| Entry | 92 | Dying is expected |
-| Trader | 88 | Support role ceiling |
-| Rotator | 95 | Impact multiplier ceiling |
-| Anchor | 85 | Requires breakout conditions |
-
 ### Calibration Rules
 
-- **Kill Gate**: raw_impact > 105 with < 18 kills receives 0.90x penalty
-- **Exit Tax**: 8+ exit frags receives 0.85x penalty
-- **KDR Cap**: KDR < 0.8 capped at 75, Trader < 1.0 capped at 80
-- **Breakout**: Requires KDR > 1.15, KAST > 70%, Kills >= 16
-- **Floor**: Minimum rating of 15 (no zeros)
+| Rule | Condition | Effect |
+|------|-----------|--------|
+| Kill Gate | raw > 105, kills < 18 | 0.90x |
+| Exit Tax | exit_frags >= 8 | 0.85x |
+| Low KDR Cap | KDR < 0.8 | max 75 |
+| Trader Ceiling | Trader, KDR < 1.0 | max 80 |
+| Rotator Ceiling | Rotator role | max 95 |
+| Breakout | KDR > 1.15, KAST > 70%, kills >= 16 | +10 cap |
+| Floor | Always | min 15 |
 
-## JSON Output Schema
+---
+
+## Player Comparison
+
+Track players across multiple matches:
 
 ```json
 {
-  "meta": {
-    "match_id": "string",
-    "map": "string",
-    "version": "2.9.0",
-    "metric_definitions": { ... }
-  },
-  "players": {
-    "steam_id": {
-      "name": "string",
-      "role": "AWPer|Entry|Trader|Rotator|SiteAnchor",
-      "final_rating": 0-100,
-      "confidence": 0-100,
-      "scores": {
-        "aim": 0-100,
-        "positioning": 0-100,
-        "impact": 0-100,
-        "raw_impact": "float (uncapped)"
-      },
-      "stats": { ... },
-      "mistakes": [ ... ]
-    }
-  },
-  "team_summary": { ... }
+  "name": "REZ",
+  "matches_played": 3,
+  "avg_rating": 88.3,
+  "form_rating": 88.3,
+  "consistency": 25.1,
+  "trend": "stable",
+  "match_history": [
+    {"map": "de_dust2", "role": "SiteAnchor", "rating": 77},
+    {"map": "de_nuke", "role": "Trader", "rating": 98},
+    {"map": "de_train", "role": "Rotator", "rating": 90}
+  ]
 }
 ```
+
+| Metric | Description |
+|--------|-------------|
+| **avg_rating** | Mean rating across all matches |
+| **form_rating** | Last 3 matches average |
+| **consistency** | 100 = no variance, 0 = volatile |
+| **trend** | improving, declining, stable |
+
+---
 
 ## API Reference
 
@@ -121,15 +132,6 @@ output/
 ```python
 from src.metrics.scoring import ScoreEngine
 
-# Compute aim score
-raw_aim, effective_aim = ScoreEngine.compute_aim_score(
-    hs_percent=0.45,
-    kpr=0.8,
-    adr=85.0,
-    counter_strafe=80.0
-)
-
-# Compute final rating
 rating = ScoreEngine.compute_final_rating(
     scores={"raw_impact": 100},
     role="Entry",
@@ -137,62 +139,64 @@ rating = ScoreEngine.compute_final_rating(
     untradeable_deaths=5,
     kills=18,
     rounds_played=20,
-    kast_percentage=0.7
+    kast_percentage=0.7,
+    exit_frags=3
 )
 ```
 
-### RoleClassifier
+### PlayerTracker
 
 ```python
-from src.metrics.role_classifier import RoleClassifier
+from src.analytics.player_tracker import PlayerTracker
 
-classifier = RoleClassifier()
-player_features = classifier.classify_roles(player_features_dict)
+tracker = PlayerTracker()
+tracker.load_directory("./outputs")
+comparison = tracker.compare_players()
 ```
+
+---
 
 ## Testing
 
 ```bash
-# Run all tests
 python -m pytest tests/ -v
-
-# Run calibration tests only
-python -m pytest tests/test_calibration.py -v
 ```
 
-### Test Coverage
-
-- Exit frag tax trigger (>= 8 frags)
-- Low KDR cap (< 0.8)
-- Rotator ceiling (max 95)
-- Kill-gate trigger (raw > 105, kills < 18)
-- Trader ceiling (KDR < 1.0)
-- Floor clamp (min 15)
+**26 tests covering:**
+- Exit frag tax
+- KDR caps
+- Role ceilings
+- Kill-gate logic
 - Smurf detection
-- Breakout rule validation
+- Breakout rules
+- Map coordinate transformations
+
+---
 
 ## Project Structure
 
 ```
-cs2-ai-coach/
+cs2-analyzer-engine/
 ├── src/
-│   ├── main.py              # Entry point
+│   ├── main.py
+│   ├── analytics/
+│   │   └── player_tracker.py
 │   ├── features/
-│   │   └── extractor.py     # Demo parsing
+│   │   └── extractor.py
 │   ├── metrics/
-│   │   ├── scoring.py       # Rating engine
-│   │   ├── calibration.py   # Baselines and caps
+│   │   ├── scoring.py
+│   │   ├── calibration.py
 │   │   └── role_classifier.py
 │   └── report/
-│       ├── json_reporter.py # Output generation
-│       ├── drills.py        # Coaching recommendations
+│       ├── json_reporter.py
 │       └── heatmaps.py
 ├── tests/
-│   └── test_calibration.py
 ├── CHANGELOG.md
 ├── LICENSE
 └── README.md
 ```
+
+---
 
 ## Requirements
 
@@ -200,21 +204,10 @@ cs2-ai-coach/
 - demoparser2
 - numpy
 - matplotlib
-- seaborn
+- pytest
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit changes (`git commit -am 'Add improvement'`)
-4. Push to branch (`git push origin feature/improvement`)
-5. Open a Pull Request
+---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-- [demoparser2](https://github.com/LaihoE/demoparser) for CS2 demo parsing
-- Community feedback for calibration improvements
+MIT License. See [LICENSE](LICENSE).

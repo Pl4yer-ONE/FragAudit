@@ -1,4 +1,4 @@
-# Changelog
+# Changelog - CS2 Analyzer Engine
 
 All notable changes to the CS2 AI Coach project will be documented in this file.
 

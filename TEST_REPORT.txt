@@ -1,5 +1,5 @@
 ================================================================================
-                    CS2 AI COACH - COMPREHENSIVE TEST REPORT
+                    CS2 ANALYZER ENGINE - COMPREHENSIVE TEST REPORT
                               Version: v2.9.0 FINAL
                       Generated: 2026-01-12T11:00:53+05:30
 ================================================================================
