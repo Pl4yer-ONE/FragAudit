@@ -85,21 +85,21 @@ class ReportGenerator:
         """Generate match summary."""
         total_mistakes = sum(len(m) for m in classified_mistakes.values())
         
-        # Count mistakes by category
-        category_counts = {}
+        # Count mistakes by type
+        type_counts = {}
         for mistakes in classified_mistakes.values():
             for mistake in mistakes:
-                if mistake.category not in category_counts:
-                    category_counts[mistake.category] = 0
-                category_counts[mistake.category] += 1
+                if mistake.mistake_type not in type_counts:
+                    type_counts[mistake.mistake_type] = 0
+                type_counts[mistake.mistake_type] += 1
         
         # Find most common issue
-        most_common = max(category_counts.items(), key=lambda x: x[1]) if category_counts else (None, 0)
+        most_common = max(type_counts.items(), key=lambda x: x[1]) if type_counts else (None, 0)
         
         return {
             "total_players_analyzed": len(player_features),
             "total_mistakes_found": total_mistakes,
-            "mistakes_by_category": category_counts,
+            "mistakes_by_type": type_counts,
             "most_common_issue": most_common[0]
         }
     
@@ -134,20 +134,18 @@ class ReportGenerator:
             },
             "mistakes": [
                 {
-                    "category": m.category,
-                    "subcategory": m.subcategory,
+                    "type": m.mistake_type,
+                    "details": m.details,
                     "severity": m.severity,
-                    "confidence": round(m.confidence, 2),
-                    "current_value": m.current_value,
-                    "target_value": m.target_value,
-                    "tactical_feedback": getattr(m, 'tactical_feedback', ''),
-                    "evidence": m.evidence_metrics
+                    "correction": m.correction,
+                    "round": m.round_num,
+                    "tick": m.tick
                 }
                 for m in mistakes
             ],
             "feedback": feedback,
             "improvement_priority": [
-                m.subcategory for m in mistakes[:3]  # Top 3 priorities
+                m.mistake_type for m in mistakes[:3]  # Top 3 priorities
             ]
         }
     
@@ -242,12 +240,12 @@ class ReportGenerator:
                 lines.append("### Improvement Areas")
                 lines.append("")
                 for mistake in player_data["mistakes"]:
-                    severity_emoji = "🔴" if mistake["severity"] == "high" else "🟡" if mistake["severity"] == "medium" else "🟢"
-                    lines.append(f"#### {severity_emoji} {mistake['category']}: {mistake['subcategory'].replace('_', ' ').title()}")
+                    severity_emoji = "🔴" if mistake["severity"] >= 0.8 else "🟡" if mistake["severity"] >= 0.5 else "🟢"
+                    lines.append(f"#### {severity_emoji} {mistake['type'].replace('_', ' ').title()}")
                     lines.append("")
-                    lines.append(f"- **Current:** {mistake['current_value']}")
-                    lines.append(f"- **Target:** {mistake['target_value']}")
-                    lines.append(f"- **Confidence:** {mistake['confidence'] * 100:.0f}%")
+                    lines.append(f"- **Details:** {mistake['details']}")
+                    lines.append(f"- **Correction:** {mistake['correction']}")
+                    lines.append(f"- **Severity:** {mistake['severity']:.0%}")
                     lines.append("")
             
             # Feedback
@@ -282,10 +280,10 @@ class ReportGenerator:
         print(f"Players analyzed: {summary['total_players_analyzed']}")
         print(f"Issues found: {summary['total_mistakes_found']}")
         
-        if summary["mistakes_by_category"]:
-            print("\nIssues by category:")
-            for category, count in summary["mistakes_by_category"].items():
-                print(f"  - {category}: {count}")
+        if summary.get("mistakes_by_type"):
+            print("\nIssues by type:")
+            for mtype, count in summary["mistakes_by_type"].items():
+                print(f"  - {mtype}: {count}")
         
         print("\n" + "-" * 50)
         
