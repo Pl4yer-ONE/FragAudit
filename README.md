@@ -7,13 +7,13 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-3.0.0-orange.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-26%20passing-brightgreen.svg)](tests/)
+[![CI](https://github.com/Pl4yer-ONE/FragAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/Pl4yer-ONE/FragAudit/actions)
 
 **Forensic demo analysis. Exploit-resistant ratings. Visual playback.**
 
 ---
 
-[Installation](#installation) • [Demo Player](#demo-player) • [Analysis](#analysis) • [Rating System](#rating-system) • [API](#api-reference)
+[Installation](#installation) • [Demo Player](#demo-player) • [Analysis](#analysis) • [Roadmap](#roadmap) • [API](#api-reference)
 
 </div>
 
@@ -58,6 +58,14 @@ python main.py play match/demo.dem
 ---
 
 ## Installation
+
+### Quick Install (Recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Pl4yer-ONE/FragAudit/main/install.sh | bash
+```
+
+### Manual Install
 
 ```bash
 git clone https://github.com/Pl4yer-ONE/FragAudit.git
