@@ -82,7 +82,7 @@ FragAudit reads CS2 demo files and identifies common positioning mistakes:
 ### Radar Replay
 <div align="center">
 
-![Radar Replay](docs/radar_replay.png)
+![Radar Replay](docs/radar_replay.gif)
 
 *Animated radar video with player movements, smokes, flashes, and kills*
 

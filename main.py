@@ -111,6 +111,11 @@ For more information, see README.md
         default=20,
         help="Radar video FPS (default: 20)"
     )
+    analyze_parser.add_argument(
+        "--gif",
+        action="store_true",
+        help="Generate GIF preview of radar"
+    )
     
     analyze_parser.add_argument(
         "--player",
@@ -360,8 +365,8 @@ def run_analyze(args) -> int:
                     print(f"Heatmap embedded in HTML report")
         
         # Radar video generation
-        if getattr(args, 'radar', False):
-            from src.radar import extract_ticks, RadarRenderer, encode_video, check_ffmpeg
+        if getattr(args, 'radar', False) or getattr(args, 'gif', False):
+            from src.radar import extract_ticks, RadarRenderer, encode_video, encode_gif, check_ffmpeg
             from datetime import datetime
             import tempfile
             import base64
@@ -378,6 +383,11 @@ def run_analyze(args) -> int:
                 fps = getattr(args, 'radar_fps', 20)
                 tick_interval = 16  # 4 samples per second of game time
                 max_frames = 5000   # Limit to ~250 sec video at 20fps (covering ~20 mins of game)
+                
+                # Default limit for GIF only (preview mode)
+                if getattr(args, 'gif', False) and not getattr(args, 'radar', False):
+                    max_frames = 400  # ~20 seconds
+                    
                 frames = extract_ticks(parsed_demo, tick_interval=tick_interval, max_ticks=max_frames)
                 
                 if frames:
@@ -395,8 +405,19 @@ def run_analyze(args) -> int:
                     renderer.render_all(frames)
                     
                     # Encode to MP4
-                    video_path = f"reports/radar_{timestamp}.mp4"
-                    encode_video(frames_dir, video_path, fps=getattr(args, 'radar_fps', 20))
+                    if getattr(args, 'radar', False):
+                        video_path = f"reports/radar_{timestamp}.mp4"
+                        encode_video(frames_dir, video_path, fps=getattr(args, 'radar_fps', 20))
+                        print(f"Radar video saved: {video_path}")
+                    
+                    # Encode to GIF
+                    if getattr(args, 'gif', False):
+                        gif_path = f"reports/radar_{timestamp}.gif"
+                        encode_gif(frames_dir, gif_path, fps=15, scale=480)
+                        print(f"Radar GIF saved: {gif_path}")
+                        # Use GIF for embedding if no MP4 (or override)
+                        if not getattr(args, 'radar', False):
+                            video_path = str(gif_path)
                     
                     # Cleanup frames
                     renderer.cleanup()
