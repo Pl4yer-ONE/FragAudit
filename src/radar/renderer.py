@@ -14,7 +14,8 @@ from matplotlib.patches import Circle
 from PIL import Image
 
 
-from src.radar.extractor import TickFrame, PlayerFrame, SmokeFrame, FlashFrame, KillFrame
+
+from src.radar.extractor import TickFrame, PlayerFrame, SmokeFrame, FlashFrame, KillFrame, GrenadeFrame
 from src.visualization.map_coords import world_to_radar, load_map_registry
 
 
@@ -25,10 +26,15 @@ BOMB_COLOR = '#FFD93D'    # Yellow
 SMOKE_COLOR = '#AAAAAA'   # Gray
 FLASH_COLOR = '#FFFFFF'   # White flash
 KILL_COLOR = '#FF0000'    # Red for kill marker
+HE_COLOR = '#FF8C00'      # Orange for HE grenade
+MOLLY_COLOR = '#FF4500'   # Fire red for molotov
+TRAIL_ALPHA = 0.3         # Faded trail
 DEAD_ALPHA = 0.25
 ALIVE_ALPHA = 0.9
 SMOKE_RADIUS = 30         # Radar pixels (~144 units in-game)
 FLASH_RADIUS = 40         # Flash effect radius
+HE_RADIUS = 25            # HE grenade explosion
+MOLLY_RADIUS = 20         # Molotov fire area
 
 
 class RadarRenderer:
@@ -91,6 +97,10 @@ class RadarRenderer:
         for smoke in frame.smokes:
             self._draw_smoke(ax, smoke, frame.tick)
         
+        # Draw grenades (HE and molotov)
+        for grenade in frame.grenades:
+            self._draw_grenade(ax, grenade, frame.tick)
+        
         # Draw flashes (bright circle effect)
         for flash in frame.flashes:
             self._draw_flash(ax, flash, frame.tick)
@@ -98,6 +108,11 @@ class RadarRenderer:
         # Draw kills (skull markers)
         for kill in frame.kills:
             self._draw_kill(ax, kill, frame.tick)
+        
+        # Draw player trails (movement history)
+        for player in frame.players:
+            if player.steam_id in frame.trail_positions:
+                self._draw_trail(ax, player, frame.trail_positions[player.steam_id])
         
         # Draw players
         for player in frame.players:
@@ -292,6 +307,80 @@ class RadarRenderer:
         # Draw skull marker (X with circle)
         ax.scatter(kx, ky, marker='x', c=color, s=150, alpha=alpha, linewidth=3, zorder=8)
         ax.scatter(kx, ky, marker='o', c='white', s=80, alpha=alpha * 0.3, zorder=7)
+    
+    def _draw_grenade(self, ax, grenade: GrenadeFrame, current_tick: int):
+        """Draw an HE grenade or molotov."""
+        gx, gy = world_to_radar(
+            np.array([grenade.x]),
+            np.array([grenade.y]),
+            self.map_config,
+            self.resolution
+        )
+        
+        if len(gx) == 0 or len(gy) == 0:
+            return
+        gx, gy = gx[0], gy[0]
+        
+        if gx < 0 or gx > self.resolution or gy < 0 or gy > self.resolution:
+            return
+        
+        # Fade out
+        age = current_tick - grenade.tick
+        alpha = max(0.1, 0.7 * (1 - age / grenade.duration_ticks))
+        
+        # Color and radius based on type
+        if grenade.grenade_type == 'he':
+            color = HE_COLOR
+            radius = HE_RADIUS
+            edge = '#FFD700'  # Gold edge
+        else:  # molotov
+            color = MOLLY_COLOR
+            radius = MOLLY_RADIUS
+            edge = '#FF0000'  # Red edge
+        
+        circle = Circle(
+            (gx, gy), 
+            radius,
+            facecolor=color,
+            edgecolor=edge,
+            alpha=alpha,
+            linewidth=2,
+            zorder=4
+        )
+        ax.add_patch(circle)
+    
+    def _draw_trail(self, ax, player: PlayerFrame, positions: list):
+        """Draw player movement trail."""
+        if len(positions) < 2:
+            return
+        
+        # Convert all positions to radar coords
+        radar_positions = []
+        for wx, wy in positions:
+            rx, ry = world_to_radar(
+                np.array([wx]),
+                np.array([wy]),
+                self.map_config,
+                self.resolution
+            )
+            if len(rx) > 0 and len(ry) > 0:
+                radar_positions.append((rx[0], ry[0]))
+        
+        if len(radar_positions) < 2:
+            return
+        
+        # Color based on team
+        color = CT_COLOR if player.team == 'CT' else T_COLOR
+        
+        # Draw trail as fading line
+        for i in range(len(radar_positions) - 1):
+            x1, y1 = radar_positions[i]
+            x2, y2 = radar_positions[i + 1]
+            
+            # Fade older positions
+            alpha = TRAIL_ALPHA * (i + 1) / len(radar_positions)
+            
+            ax.plot([x1, x2], [y1, y2], color=color, alpha=alpha, linewidth=2, zorder=2)
     
     def render_all(self, frames: List[TickFrame], progress_interval: int = 100) -> List[str]:
         """

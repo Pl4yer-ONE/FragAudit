@@ -372,12 +372,12 @@ def run_analyze(args) -> int:
             else:
                 print("Generating radar replay...")
                 
-                # Extract ticks: 64 tick demo / 64 interval = 1 frame per second
-                # For 20 FPS output, we speed up 20x (1 second of game = 1/20th second of video)
-                # Max 2000 frames = 100 seconds of video
+                # Extract ticks: 64 tick demo / 32 interval = 2 frames per second of game
+                # For 20 FPS output, 10 seconds of game = 1 second of video
+                # Slower, more detailed videos with visible player trails
                 fps = getattr(args, 'radar_fps', 20)
-                tick_interval = 64  # 1 sample per second of game time
-                max_frames = 2000   # Limit to ~100 sec video at 20fps
+                tick_interval = 32  # 2 samples per second of game time (smoother)
+                max_frames = 3000   # Limit to ~150 sec video at 20fps
                 frames = extract_ticks(parsed_demo, tick_interval=tick_interval, max_ticks=max_frames)
                 
                 if frames:
@@ -423,13 +423,16 @@ def run_analyze(args) -> int:
                 <button onclick="document.getElementById('radarVideo').playbackRate = 2" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #4ecdc4; background: transparent; color: #4ecdc4; cursor: pointer;">2x</button>
                 <button onclick="document.getElementById('radarVideo').playbackRate = 4" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #4ecdc4; background: transparent; color: #4ecdc4; cursor: pointer;">4x</button>
             </div>
-            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 2rem; font-size: 0.85rem; color: #888; flex-wrap: wrap;">
+            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 1.5rem; font-size: 0.85rem; color: #888; flex-wrap: wrap;">
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #5C7AEA; border-radius: 50%; margin-right: 4px;"></span> CT</span>
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #E94560; border-radius: 50%; margin-right: 4px;"></span> T</span>
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #FFD93D; margin-right: 4px;"></span> Bomb</span>
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #AAAAAA; border-radius: 50%; margin-right: 4px; opacity: 0.5;"></span> Smoke</span>
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #FFFFFF; border-radius: 50%; margin-right: 4px; opacity: 0.6;"></span> Flash</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #FF8C00; border-radius: 50%; margin-right: 4px;"></span> HE</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #FF4500; border-radius: 50%; margin-right: 4px;"></span> Molly</span>
                 <span style="color: #E94560;">✕ Kill</span>
+                <span style="opacity: 0.5;">── Trail</span>
             </div>
             <p style="color: #888; margin-top: 0.5rem;">Player movement replay for {parsed_demo.map_name}</p>
         </div>

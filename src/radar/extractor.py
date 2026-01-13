@@ -33,6 +33,7 @@ class SmokeFrame:
     duration_ticks: int = 1152  # ~18 seconds at 64 tick
 
 
+
 @dataclass
 class FlashFrame:
     """Flash grenade detonation."""
@@ -40,6 +41,16 @@ class FlashFrame:
     y: float
     tick: int
     duration_ticks: int = 128  # ~2 seconds visible
+
+
+@dataclass
+class GrenadeFrame:
+    """HE grenade or molotov."""
+    x: float
+    y: float
+    tick: int
+    grenade_type: str  # 'he' or 'molotov'
+    duration_ticks: int = 64  # ~1 second for HE, longer for molly
 
 
 @dataclass
@@ -62,7 +73,9 @@ class TickFrame:
     bomb_y: Optional[float] = None
     smokes: List[SmokeFrame] = None
     flashes: List[FlashFrame] = None
+    grenades: List[GrenadeFrame] = None  # HE and molotov
     kills: List[KillFrame] = None
+    trail_positions: Dict[str, List[Tuple[float, float]]] = None  # player_id -> last N positions
     round_num: int = 0
     
     def __post_init__(self):
@@ -70,8 +83,12 @@ class TickFrame:
             self.smokes = []
         if self.flashes is None:
             self.flashes = []
+        if self.grenades is None:
+            self.grenades = []
         if self.kills is None:
             self.kills = []
+        if self.trail_positions is None:
+            self.trail_positions = {}
 
 
 def extract_ticks(
@@ -114,6 +131,12 @@ def extract_ticks(
     # Extract smoke detonations for overlay
     smoke_events = []
     flash_events = []
+    grenade_events = []
+    
+    # Trail tracking: store last N positions per player
+    trail_history: Dict[str, List[Tuple[float, float]]] = {}
+    TRAIL_LENGTH = 10  # Number of positions to keep
+    
     grenades = demo.grenades
     if grenades is not None and not grenades.empty:
         # Smokes
@@ -134,6 +157,25 @@ def extract_ticks(
                 tick = int(row.get('tick', 0))
                 if x != 0 and y != 0:
                     flash_events.append(FlashFrame(x=x, y=y, tick=tick))
+            
+            # HE grenades
+            he_df = grenades[grenades['grenade_type'] == 'hegrenade']
+            for _, row in he_df.iterrows():
+                x = float(row.get('X', row.get('x', 0)))
+                y = float(row.get('Y', row.get('y', 0)))
+                tick = int(row.get('tick', 0))
+                if x != 0 and y != 0:
+                    grenade_events.append(GrenadeFrame(x=x, y=y, tick=tick, grenade_type='he'))
+            
+            # Molotovs/Incendiaries
+            molly_df = grenades[grenades['grenade_type'].isin(['molotov', 'incgrenade'])]
+            for _, row in molly_df.iterrows():
+                x = float(row.get('X', row.get('x', 0)))
+                y = float(row.get('Y', row.get('y', 0)))
+                tick = int(row.get('tick', 0))
+                if x != 0 and y != 0:
+                    # Molotovs last longer (~7 seconds)
+                    grenade_events.append(GrenadeFrame(x=x, y=y, tick=tick, grenade_type='molotov', duration_ticks=448))
     
     # Extract kills for markers
     kill_events = []
@@ -216,12 +258,34 @@ def extract_ticks(
                 if k.tick <= tick <= k.tick + k.duration_ticks
             ]
             
+            # Find active grenades at this tick (HE and molotov)
+            active_grenades = [
+                g for g in grenade_events
+                if g.tick <= tick <= g.tick + g.duration_ticks
+            ]
+            
+            # Update trail history for each player
+            for player in players:
+                if player.alive:
+                    pid = player.steam_id
+                    if pid not in trail_history:
+                        trail_history[pid] = []
+                    trail_history[pid].append((player.x, player.y))
+                    # Keep only last N positions
+                    if len(trail_history[pid]) > TRAIL_LENGTH:
+                        trail_history[pid] = trail_history[pid][-TRAIL_LENGTH:]
+            
+            # Copy current trail positions for this frame
+            current_trails = {pid: list(positions) for pid, positions in trail_history.items()}
+            
             frames.append(TickFrame(
                 tick=tick,
                 players=players,
                 smokes=active_smokes,
                 flashes=active_flashes,
+                grenades=active_grenades,
                 kills=active_kills,
+                trail_positions=current_trails,
                 round_num=0
             ))
     
