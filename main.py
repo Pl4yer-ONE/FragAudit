@@ -100,6 +100,19 @@ For more information, see README.md
     )
     
     analyze_parser.add_argument(
+        "--radar",
+        action="store_true",
+        help="Generate MP4 radar replay video"
+    )
+    
+    analyze_parser.add_argument(
+        "--radar-fps",
+        type=int,
+        default=20,
+        help="Radar video FPS (default: 20)"
+    )
+    
+    analyze_parser.add_argument(
         "--player",
         type=str,
         help="Analyze specific player only (by Steam ID or name)"
@@ -345,6 +358,75 @@ def run_analyze(args) -> int:
                     with open(html_path, 'w') as f:
                         f.write(html_content)
                     print(f"Heatmap embedded in HTML report")
+        
+        # Radar video generation
+        if getattr(args, 'radar', False):
+            from src.radar import extract_ticks, RadarRenderer, encode_video, check_ffmpeg
+            from datetime import datetime
+            import tempfile
+            import base64
+            
+            if not check_ffmpeg():
+                print("⚠️ ffmpeg not installed. Skipping radar video.")
+                print("  Install with: brew install ffmpeg")
+            else:
+                print("Generating radar replay...")
+                
+                # Extract ticks: 64 tick demo / 64 interval = 1 frame per second
+                # For 20 FPS output, we speed up 20x (1 second of game = 1/20th second of video)
+                # Max 2000 frames = 100 seconds of video
+                fps = getattr(args, 'radar_fps', 20)
+                tick_interval = 64  # 1 sample per second of game time
+                max_frames = 2000   # Limit to ~100 sec video at 20fps
+                frames = extract_ticks(parsed_demo, tick_interval=tick_interval, max_ticks=max_frames)
+                
+                if frames:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    # Create temp frames directory
+                    frames_dir = f"reports/radar_frames_{timestamp}"
+                    
+                    # Render frames
+                    renderer = RadarRenderer(
+                        map_name=parsed_demo.map_name,
+                        output_dir=frames_dir,
+                        show_names=False
+                    )
+                    renderer.render_all(frames)
+                    
+                    # Encode to MP4
+                    video_path = f"reports/radar_{timestamp}.mp4"
+                    encode_video(frames_dir, video_path, fps=getattr(args, 'radar_fps', 20))
+                    
+                    # Cleanup frames
+                    renderer.cleanup()
+                    
+                    print(f"Radar video saved: {video_path}")
+                    
+                    # Embed in HTML if also generating HTML
+                    if getattr(args, 'html', False) and html_path:
+                        with open(video_path, 'rb') as f:
+                            video_b64 = base64.b64encode(f.read()).decode()
+                        
+                        with open(html_path, 'r') as f:
+                            html_content = f.read()
+                        
+                        radar_html = f'''
+        <h2>Radar Replay</h2>
+        <div style="text-align: center; margin: 2rem 0;">
+            <video controls autoplay loop muted style="max-width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+            </video>
+            <p style="color: #888; margin-top: 1rem;">Player movement replay for {parsed_demo.map_name}</p>
+        </div>
+'''
+                        html_content = html_content.replace('</div>\n</body>', radar_html + '</div>\n</body>')
+                        
+                        with open(html_path, 'w') as f:
+                            f.write(html_content)
+                        print("Radar video embedded in HTML report")
+                else:
+                    print("⚠️ No tick data available for radar")
         
         # Print summary
         generator.print_summary(report)
