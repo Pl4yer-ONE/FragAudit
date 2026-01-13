@@ -29,7 +29,9 @@ It generates reports showing exactly when and where mistakes happened.
 
 ## Who It's For
 
-- Players reviewing their own demos
+**Primary:** Competitive players reviewing scrims to fix positioning mistakes.
+
+Also useful for:
 - Coaches analyzing team VODs
 - Analysts building match reports
 - Developers building on demo parsing
@@ -170,11 +172,11 @@ Visual playback without CS2 installed.
 
 | Type | Trigger | Severity |
 |------|---------|----------|
-| `dry_peek` | Peeked without flash support | 70% |
-| `dry_peek_awp` | Dry peeked into AWP | 95% |
-| `untradeable_death` | Died >400u from teammates | 85% |
-| `bad_spacing` | Stacked on 2+ teammates | 65% |
-| `solo_late_round` | Died alone in late round | 75% |
+| `dry_peek` | Peeked without flash support | MED |
+| `dry_peek_awp` | Dry peeked into AWP | HIGH |
+| `untradeable_death` | Died >400u from teammates | HIGH |
+| `bad_spacing` | Stacked on 2+ teammates | MED |
+| `solo_late_round` | Died alone in late round | MED |
 
 ---
 
@@ -183,11 +185,16 @@ Visual playback without CS2 installed.
 Enable Ollama for natural language advice:
 
 ```bash
-# Start Ollama (must have llama3 model)
-ollama run llama3
-
-# Run with AI coaching
 python main.py analyze --demo match.dem --ollama --html
+```
+
+**Example:**
+```
+Input:
+  dry_peek in Round 7 at A Long
+
+AI Output:
+  "You challenged A Long without utility — ask for a long flash from CT spawn next time."
 ```
 
 Without Ollama, you get varied template-based advice (map-specific, context-aware).
@@ -256,6 +263,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 <div align="center">
 
-*FragAudit — Find out where you died badly.*
+*FragAudit — Turn demos into actionable mistakes.*
 
 </div>
