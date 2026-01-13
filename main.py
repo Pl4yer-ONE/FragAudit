@@ -94,6 +94,12 @@ For more information, see README.md
     )
     
     analyze_parser.add_argument(
+        "--heatmap",
+        action="store_true",
+        help="Generate kill heatmap overlay on map"
+    )
+    
+    analyze_parser.add_argument(
         "--player",
         type=str,
         help="Analyze specific player only (by Steam ID or name)"
@@ -111,26 +117,6 @@ For more information, see README.md
         "--verbose", "-v",
         action="store_true",
         help="Verbose output"
-    )
-    
-    analyze_parser.add_argument(
-        "--heatmap",
-        action="store_true",
-        help="Generate kill/death/movement heatmaps"
-    )
-    
-    analyze_parser.add_argument(
-        "--heatmap-phase",
-        type=str,
-        choices=["early", "mid", "late"],
-        default=None,
-        help="Filter heatmaps by round phase"
-    )
-    
-    analyze_parser.add_argument(
-        "--overlay-map",
-        action="store_true",
-        help="Overlay heatmaps on radar map images"
     )
     
     # =========================================================================
@@ -200,16 +186,6 @@ def run_analyze(args) -> int:
             print(f"  Parser used: {demo_parser.parser_type}")
             print(f"  Kills found: {len(parsed_demo.kills)}")
             print(f"  Damages found: {len(parsed_demo.damages)}")
-        
-        # Step 1b: Generate heatmaps if requested
-        if args.heatmap:
-            overlay = getattr(args, 'overlay_map', False)
-            heatmap_gen = HeatmapGenerator(
-                parsed_demo,
-                phase=getattr(args, 'heatmap_phase', None),
-                overlay_enabled=overlay
-            )
-            heatmap_paths = heatmap_gen.generate_all()
         
         # Step 2: Extract features
         print("Extracting features...")
@@ -332,6 +308,43 @@ def run_analyze(args) -> int:
                             m.get('fix', '')
                         ])
             print(f"CSV report saved: {csv_filename}")
+        
+        # Heatmap generation
+        if getattr(args, 'heatmap', False):
+            from src.visualization.heatmap import HeatmapGenerator
+            from datetime import datetime
+            import base64
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            heatmap_dir = f"reports/heatmaps/{timestamp}"
+            
+            hm = HeatmapGenerator(parsed_demo, output_dir=heatmap_dir, overlay_enabled=False)
+            heatmap_path = hm.generate_kills_heatmap()
+            print(f"Heatmap saved: {heatmap_path}")
+            
+            # If HTML was also generated, create a combined version with heatmap
+            if getattr(args, 'html', False) and heatmap_path:
+                with open(heatmap_path, 'rb') as f:
+                    heatmap_b64 = base64.b64encode(f.read()).decode()
+                
+                # Append heatmap to HTML report
+                if html_path:
+                    with open(html_path, 'r') as f:
+                        html_content = f.read()
+                    
+                    heatmap_html = f'''
+        <h2>Kill Heatmap</h2>
+        <div style="text-align: center; margin: 2rem 0;">
+            <img src="data:image/png;base64,{heatmap_b64}" alt="Kill Heatmap" style="max-width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"/>
+            <p style="color: #888; margin-top: 1rem;">Kill locations density map for {parsed_demo.map_name}</p>
+        </div>
+'''
+                    # Insert before closing </div></body>
+                    html_content = html_content.replace('</div>\n</body>', heatmap_html + '</div>\n</body>')
+                    
+                    with open(html_path, 'w') as f:
+                        f.write(html_content)
+                    print(f"Heatmap embedded in HTML report")
         
         # Print summary
         generator.print_summary(report)
