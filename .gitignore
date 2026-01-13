@@ -23,6 +23,7 @@ outputs/
 reports/
 *.png
 !docs/*.png
+!assets/maps/*.png
 *.json
 !package.json
 
