@@ -38,10 +38,8 @@ It generates reports showing exactly when and where mistakes happened.
 
 ## What It Doesn't Do
 
-Be honest with yourself:
-
 - ❌ Not a replacement for watching demos
-- ❌ No AI coaching or natural language advice
+- ❌ No AI coaching or natural language advice (unless you enable Ollama)
 - ❌ Won't tell you about crosshair placement or aim
 - ❌ Can't detect utility usage quality (yet)
 - ❌ Rule-based, not ML — it follows heuristics, not magic
@@ -58,17 +56,9 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Verify it works:
-
+Verify:
 ```bash
 python main.py check-parsers
-```
-
-Expected:
-```
-CS2 Demo Parser Status
-------------------------------
-  demoparser2: ✓ Available
 ```
 
 ---
@@ -76,64 +66,83 @@ CS2 Demo Parser Status
 ## Usage
 
 ### Analyze a demo
-
 ```bash
-python main.py analyze --demo match.dem
+python main.py analyze --demo match/your-demo.dem
 ```
 
-### Generate markdown report
-
-```bash
-python main.py analyze --demo match.dem --markdown
-```
-
-### Generate HTML report
-
+### Generate HTML report (shareable)
 ```bash
 python main.py analyze --demo match.dem --html
 ```
 
-### Watch a demo (visual player)
+### Enable AI coaching advice (requires Ollama)
+```bash
+python main.py analyze --demo match.dem --ollama --html
+```
 
+### Watch demo visually
 ```bash
 python main.py play match.dem
 ```
 
+📖 **Full guide:** [docs/USAGE.md](docs/USAGE.md)
+
 ---
 
 ## Sample Output
+
+Real output from analyzing `phoenix-vs-rave-m3-ancient.dem`:
 
 ```
 ════════════════════════════════════════════════════════════
   FRAGAUDIT ANALYSIS
 ════════════════════════════════════════════════════════════
 
-  Map: de_dust2
-  Demo: match.dem
+  Map: de_ancient
+  Demo: match/phoenix-vs-rave-m3-ancient.dem
 
-  Players: 10    Issues: 6
+  Players: 10    Issues: 7
 
   Issue Types:
-    dry peek             ██████░░░░ 6
+    dry peek             ███████░░░ 7
 
 ────────────────────────────────────────────────────────────
   PLAYER BREAKDOWN
 ────────────────────────────────────────────────────────────
 
-  shaiK
-    K/D: 1.69  HS: 72.7%  Role: Entry
-    🟡 R5 0:45 — dry peek
+  MarKE
+    K/D: 2.5  HS: 66.7%  Role: Trader
+    ✓ No issues detected
 
-  KalubeR
-    K/D: 1.64  HS: 69.6%  Role: Support
+  jchancE
+    K/D: 0.53  HS: 62.5%  Role: Trader
+    🟡 R0 0:30 — dry peek
+    🟡 R0 0:30 — dry peek
+
+  junior
+    K/D: 2.11  HS: 42.1%  Role: AWPer
     ✓ No issues detected
 
 ════════════════════════════════════════════════════════════
 ```
 
-📄 **See sample reports:** [Markdown](examples/sample_report.md) | [HTML](examples/sample_report.html)
+---
 
-📖 **Full usage guide:** [docs/USAGE.md](docs/USAGE.md)
+## HTML Reports
+
+Generate shareable HTML reports with `--html`:
+
+<div align="center">
+
+![HTML Report](docs/html_report.png)
+
+</div>
+
+Features:
+- Player cards with K/D, HS%, ADR, Role
+- Mistake breakdown per player
+- Varied coaching advice (map-specific)
+- Dark theme, mobile responsive
 
 ---
 
@@ -157,6 +166,34 @@ Visual playback without CS2 installed.
 
 ---
 
+## Mistake Detection
+
+| Type | Trigger | Severity |
+|------|---------|----------|
+| `dry_peek` | Peeked without flash support | 70% |
+| `dry_peek_awp` | Dry peeked into AWP | 95% |
+| `untradeable_death` | Died >400u from teammates | 85% |
+| `bad_spacing` | Stacked on 2+ teammates | 65% |
+| `solo_late_round` | Died alone in late round | 75% |
+
+---
+
+## AI Coaching (Optional)
+
+Enable Ollama for natural language advice:
+
+```bash
+# Start Ollama (must have llama3 model)
+ollama run llama3
+
+# Run with AI coaching
+python main.py analyze --demo match.dem --ollama --html
+```
+
+Without Ollama, you get varied template-based advice (map-specific, context-aware).
+
+---
+
 ## Project Structure
 
 ```
@@ -167,8 +204,10 @@ FragAudit/
 │   ├── features/        # Feature extraction
 │   ├── classifier/      # Mistake detection rules
 │   ├── report/          # JSON/Markdown/HTML output
+│   ├── nlp/             # Ollama integration
 │   └── player/          # Visual demo player
 ├── tests/               # 26 unit tests
+├── match/               # Demo files
 └── docs/                # Documentation
 ```
 
@@ -176,37 +215,28 @@ FragAudit/
 
 ## Roadmap
 
-- [x] Basic mistake detection (dry peek, isolated death)
-- [x] Markdown reports
+- [x] Mistake detection (dry peek, isolated death)
+- [x] Markdown + JSON reports
+- [x] HTML reports with styling
 - [x] Visual demo player
-- [ ] HTML reports with embedded CSS
-- [ ] Round-by-round timeline view
+- [x] Varied coaching advice
+- [x] Ollama AI integration
+- [ ] Round-by-round timeline
 - [ ] Team-level analysis
 - [ ] Utility usage tracking
-- [ ] Comparative player analysis
 
 ---
 
 ## Contributing
 
-Contributions welcome. This is MIT licensed — do what you want.
-
-Before submitting:
-1. Run tests: `python -m pytest tests/ -v`
-2. Keep changes focused
-3. Add tests for new detection rules
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
----
-
-## Testing
+MIT licensed — contributions welcome.
 
 ```bash
+# Run tests
 python -m pytest tests/ -v
 ```
 
-26 tests covering calibration rules and edge cases.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
