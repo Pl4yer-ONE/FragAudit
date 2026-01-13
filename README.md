@@ -79,6 +79,15 @@ FragAudit reads CS2 demo files and identifies common positioning mistakes:
 
 </div>
 
+### Radar Replay
+<div align="center">
+
+![Radar Replay](docs/radar_replay.png)
+
+*Animated radar video with player movements, smokes, flashes, and kills*
+
+</div>
+
 ---
 
 ## Who It's For
@@ -206,11 +215,12 @@ FragAudit/
 - [x] v3.0 — Mistake detection, JSON/Markdown reports, demo player
 - [x] v3.1 — HTML reports, Ollama AI, severity labels
 - [x] v3.1.1 — Trade Potential Score, CSV export
+- [x] v3.2 — Kill heatmaps, radar replay video (boltobserv-style)
+- [x] v3.2.1 — Smoke circles, flash radius, kill markers in radar
 
 ### Planned
-- [ ] v3.2 — Spacing heatmap overlay
-- [ ] v3.3 — Round-by-round timeline view
-- [ ] v3.4 — Team synergy report
+- [ ] v3.3 — Player trails, round timeline view
+- [ ] v3.4 — Team synergy report, multi-demo analysis
 
 ---
 
