@@ -5,6 +5,25 @@ All notable changes to the CS2 AI Coach project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-01-14
+
+### 🔧 RADAR FIX PATCH
+
+Critical rendering fixes for radar replay video.
+
+### Fixed
+- **Radar Alignment**: Player positions now correctly match map background
+  - Removed `bbox_inches='tight'` causing inconsistent cropping
+  - Added `subplots_adjust(left=0, right=1, top=1, bottom=0)` for zero margins
+  - Forced `aspect='equal'` on both imshow and axes
+  - Pixel-perfect frame sizing via `resolution/dpi` calculation
+- **ffmpeg Width Error**: Added scale filter for even dimensions
+  - `scale=trunc(iw/2)*2:trunc(ih/2)*2` ensures all map sizes encode correctly
+  - Fixes 0-byte video files on odd-dimension maps (e.g., de_train 793x788)
+
+### Changed
+- **Contact Email**: Updated to `FragAudit@proton.me`
+
 ## [3.3.0] - 2026-01-14
 
 ### 📊 TIMELINE + DUAL LICENSE
