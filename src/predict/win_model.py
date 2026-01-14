@@ -9,75 +9,74 @@ Hand-written logistic regression for round outcome prediction.
 NO sklearn. NO neural nets. Explainable coefficients only.
 
 Features used:
-- Economy differential
-- Man advantage
-- Role composition
+- Economy differential (tanh-clamped)
+- Man advantage (normalized to [-1, 1])
+- Role composition (capped contribution)
 - Mistake count
 - Strategy type
 
 Output: P(round_win) bounded [0.05, 0.95]
+Confidence: based on prediction strength (abs log-odds)
 """
 
 from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import math
 
 
 # Explicit, explainable coefficients
-# These are calibrated weights - can be tuned empirically
+# Scale: contribution to log-odds (not raw probability)
 COEFFICIENTS = {
-    # Economy (normalized to $1000 units)
-    "economy_diff": 0.15,        # +15% per $1000 advantage
+    # Economy (tanh-normalized, output in [-1, 1])
+    "economy_diff": 0.8,          # Max ±0.8 log-odds from economy
     
-    # Man advantage
-    "man_advantage": 0.20,       # +20% per player advantage
+    # Man advantage (normalized to [-1, 1])
+    "man_advantage": 0.6,         # Max ±0.6 log-odds from numbers
     
-    # Role quality (presence of key roles)
-    "has_entry": 0.05,           # Entry fragger present
-    "has_support": 0.03,         # Support/anchor present
-    "role_diversity": 0.02,      # Multiple distinct roles
+    # Role quality (capped total contribution)
+    "role_max": 0.15,             # Max role contribution
     
     # Mistakes (negative)
-    "mistake_count": -0.08,      # -8% per mistake
-    "high_severity_mistakes": -0.12,  # -12% per HIGH mistake
+    "mistake_count": -0.10,       # Per mistake
+    "high_severity": -0.15,       # Per HIGH mistake (additional)
     
-    # Strategy (T-side advantage for good strats)
-    "execute_strat": 0.05,       # Coordinated execute
-    "rush_strat": -0.03,         # Rush = risky
-    "default_strat": 0.02,       # Default = safe
+    # Strategy
+    "execute_strat": 0.08,        # Coordinated execute
+    "rush_strat": -0.05,          # Rush = risky
+    "default_strat": 0.03,        # Default = safe
     
-    # Intercept (base probability)
-    "intercept": 0.0,            # Centered at 50%
+    # Intercept (base = 50%)
+    "intercept": 0.0,
 }
 
-# Bounds to prevent extreme predictions
+# Bounds
 MIN_PROBABILITY = 0.05
 MAX_PROBABILITY = 0.95
+
+# Scaling constants
+ECONOMY_SCALE = 3000  # $3000 diff = ~76% of max economy effect (tanh saturation)
+MAN_ADVANTAGE_SCALE = 5  # Max possible advantage
 
 
 def _sigmoid(x: float) -> float:
     """Sigmoid function for logistic regression."""
-    # Clamp to prevent overflow
     x = max(-20, min(20, x))
     return 1.0 / (1.0 + math.exp(-x))
 
 
-def _logit(p: float) -> float:
-    """Inverse sigmoid (log-odds)."""
-    p = max(0.001, min(0.999, p))
-    return math.log(p / (1 - p))
+def _tanh(x: float) -> float:
+    """Tanh for diminishing returns scaling."""
+    return math.tanh(x)
 
 
 @dataclass
 class RoundFeatures:
-    """
-    Features extracted for round prediction.
-    """
+    """Features extracted for round prediction."""
     # Economy
-    team_economy: int = 0        # Team avg equipment value
-    enemy_economy: int = 0       # Enemy avg equipment value
+    team_economy: int = 0
+    enemy_economy: int = 0
     
-    # Players alive at round start
+    # Players alive
     team_alive: int = 5
     enemy_alive: int = 5
     
@@ -87,12 +86,12 @@ class RoundFeatures:
     lurk_count: int = 0
     anchor_count: int = 0
     
-    # Mistakes made this round
+    # Mistakes
     mistake_count: int = 0
     high_severity_count: int = 0
     
     # Strategy
-    strategy: str = ""           # EXECUTE_A, RUSH_B, etc.
+    strategy: str = ""
     
     # Side
     is_t_side: bool = True
@@ -103,12 +102,10 @@ class RoundFeatures:
 
 @dataclass
 class RoundPrediction:
-    """
-    Round win probability prediction.
-    """
-    probability: float           # P(win) for team
-    confidence: float            # How reliable is this prediction
-    features_used: int           # Number of features with data
+    """Round win probability prediction."""
+    probability: float           # P(win) bounded [0.05, 0.95]
+    confidence: float            # Prediction strength (0-1)
+    log_odds: float              # Raw log-odds before sigmoid
     dominant_factor: str         # Most influential factor
     factors: Dict[str, float]    # Individual factor contributions
     
@@ -119,7 +116,12 @@ class RoundPrediction:
 class WinPredictor:
     """
     Hand-written logistic regression predictor.
-    No ML libraries. Fully explainable.
+    
+    Math fixes applied:
+    - Economy: tanh scaling for diminishing returns
+    - Man advantage: normalized to [-1, 1]
+    - Roles: capped total contribution
+    - Confidence: based on abs(log_odds), not data presence
     """
     
     def __init__(self, coefficients: Optional[Dict[str, float]] = None):
@@ -128,59 +130,42 @@ class WinPredictor:
             self.coef.update(coefficients)
     
     def predict(self, features: RoundFeatures) -> RoundPrediction:
-        """
-        Predict round win probability.
-        
-        Returns:
-            RoundPrediction with bounded probability and factor breakdown.
-        """
+        """Predict round win probability with proper scaling."""
         factors = {}
-        features_used = 0
         
-        # Economy differential (normalized to $1000)
-        econ_diff = (features.team_economy - features.enemy_economy) / 1000
-        econ_contrib = econ_diff * self.coef["economy_diff"]
+        # ECONOMY: tanh scaling for diminishing returns
+        # $3000 diff → tanh(1) ≈ 0.76 of max effect
+        econ_diff = (features.team_economy - features.enemy_economy) / ECONOMY_SCALE
+        econ_scaled = _tanh(econ_diff)  # Output in [-1, 1]
+        econ_contrib = econ_scaled * self.coef["economy_diff"]
         factors["economy"] = round(econ_contrib, 3)
-        if features.team_economy > 0 or features.enemy_economy > 0:
-            features_used += 1
         
-        # Man advantage
-        man_diff = features.team_alive - features.enemy_alive
+        # MAN ADVANTAGE: normalized to [-1, 1]
+        man_diff = (features.team_alive - features.enemy_alive) / MAN_ADVANTAGE_SCALE
         man_contrib = man_diff * self.coef["man_advantage"]
         factors["man_advantage"] = round(man_contrib, 3)
-        if features.team_alive != 5 or features.enemy_alive != 5:
-            features_used += 1
         
-        # Role composition
-        role_contrib = 0.0
+        # ROLES: capped total contribution
+        role_score = 0.0
         if features.entry_count > 0:
-            role_contrib += self.coef["has_entry"]
-            features_used += 1
+            role_score += 0.4  # Entry present
         if features.support_count > 0 or features.anchor_count > 0:
-            role_contrib += self.coef["has_support"]
-            features_used += 1
-        
-        distinct_roles = sum([
-            1 for c in [
-                features.entry_count,
-                features.support_count,
-                features.lurk_count,
-                features.anchor_count
-            ] if c > 0
-        ])
-        role_contrib += distinct_roles * self.coef["role_diversity"]
+            role_score += 0.3  # Support present
+        if features.lurk_count > 0:
+            role_score += 0.3  # Lurk present
+        # Cap at 1.0, then apply coefficient
+        role_score = min(1.0, role_score)
+        role_contrib = role_score * self.coef["role_max"]
         factors["roles"] = round(role_contrib, 3)
         
-        # Mistakes (negative contribution)
+        # MISTAKES: linear penalty
         mistake_contrib = (
             features.mistake_count * self.coef["mistake_count"] +
-            features.high_severity_count * self.coef["high_severity_mistakes"]
+            features.high_severity_count * self.coef["high_severity"]
         )
         factors["mistakes"] = round(mistake_contrib, 3)
-        if features.mistake_count > 0:
-            features_used += 1
         
-        # Strategy
+        # STRATEGY
         strat = features.strategy.upper()
         strat_contrib = 0.0
         if "EXECUTE" in strat:
@@ -190,30 +175,28 @@ class WinPredictor:
         elif "DEFAULT" in strat:
             strat_contrib = self.coef["default_strat"]
         factors["strategy"] = round(strat_contrib, 3)
-        if features.strategy:
-            features_used += 1
         
-        # Sum all contributions (log-odds scale)
+        # SUM: log-odds scale
         log_odds = self.coef["intercept"]
         for v in factors.values():
             log_odds += v
         
-        # Convert to probability via sigmoid
+        # PROBABILITY: sigmoid with bounds
         raw_prob = _sigmoid(log_odds)
-        
-        # Bound the probability
         bounded_prob = max(MIN_PROBABILITY, min(MAX_PROBABILITY, raw_prob))
         
-        # Find dominant factor
+        # DOMINANT FACTOR
         dominant = max(factors, key=lambda k: abs(factors[k]))
         
-        # Confidence based on features available
-        confidence = min(1.0, features_used / 5)  # Max confidence at 5+ features
+        # CONFIDENCE: based on prediction strength, not data presence
+        # abs(log_odds) = 0 → 50% prediction → low confidence
+        # abs(log_odds) = 2 → ~88% prediction → high confidence
+        confidence = min(1.0, abs(log_odds) / 2.0)
         
         return RoundPrediction(
             probability=round(bounded_prob, 3),
             confidence=round(confidence, 2),
-            features_used=features_used,
+            log_odds=round(log_odds, 3),
             dominant_factor=dominant,
             factors=factors
         )
@@ -239,9 +222,10 @@ def predict_round_win(
             enemy_economy=4500,  # gun round
             team_alive=5,
             enemy_alive=4,       # man advantage
-            mistake_count=1
         )
-        print(f"Win probability: {result.probability}")
+        print(f"Win probability: {result.probability:.0%}")
+        print(f"Confidence: {result.confidence:.0%}")
+        print(f"Factors: {result.factors}")
     """
     features = RoundFeatures(
         team_economy=team_economy,

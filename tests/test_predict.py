@@ -57,7 +57,7 @@ class TestRoundPrediction:
         p = RoundPrediction(
             probability=0.65,
             confidence=0.8,
-            features_used=4,
+            log_odds=0.5,
             dominant_factor="economy",
             factors={"economy": 0.1}
         )
@@ -123,14 +123,15 @@ class TestWinPredictor:
     
     def test_custom_coefficients(self):
         """Custom coefficients can be passed."""
-        custom = {"economy_diff": 0.30}  # Double economy weight
+        custom = {"economy_diff": 1.5}  # Higher economy weight
         predictor = WinPredictor(coefficients=custom)
         
         features = RoundFeatures(team_economy=5000, enemy_economy=2000)
         result = predictor.predict(features)
         
-        # Should have higher economy factor
-        assert result.factors["economy"] > 0.5
+        # Should have higher economy factor than default
+        default = WinPredictor().predict(features)
+        assert abs(result.factors["economy"]) > abs(default.factors["economy"])
 
 
 class TestExecuteStrategy:
@@ -180,6 +181,7 @@ class TestPlayerPrediction:
             impact_probability=0.65,
             expected_rating=1.15,
             confidence=0.7,
+            log_odds=0.4,
             key_factors={"historical": 0.05}
         )
         d = p.to_dict()
@@ -263,17 +265,18 @@ class TestIntegration:
         assert len(round_result.factors) > 0
         assert len(player_result.key_factors) > 0
     
-    def test_confidence_reflects_data_quality(self):
-        """Confidence is higher with more data."""
-        sparse = predict_round_win()  # Only defaults
-        rich = predict_round_win(
-            team_economy=4000,
-            enemy_economy=3500,
-            team_alive=4,
-            enemy_alive=5,
-            entry_count=1,
-            mistake_count=1,
-            strategy="EXECUTE_A"
+    def test_confidence_reflects_prediction_strength(self):
+        """Confidence is higher with stronger predictions."""
+        # Weak prediction (balanced conditions)
+        weak = predict_round_win()
+        
+        # Strong prediction (heavily favored)
+        strong = predict_round_win(
+            team_economy=5000,
+            enemy_economy=1000,
+            team_alive=5,
+            enemy_alive=2
         )
         
-        assert rich.confidence >= sparse.confidence
+        # Strong prediction should have higher confidence
+        assert strong.confidence > weak.confidence
