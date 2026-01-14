@@ -4,100 +4,66 @@
 
 # FragAudit
 
-**Parses CS2 demos and flags positional mistakes using rule-based analysis.**
+**CS2 Demo Analysis Engine with Tactical Intelligence**
 
 [![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-174%20passed-brightgreen.svg)](tests/)
 [![CI](https://github.com/Pl4yer-ONE/FragAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/Pl4yer-ONE/FragAudit/actions)
 
 </div>
 
 ---
 
-## Architecture
+## What Is This?
 
-<div align="center">
+FragAudit parses CS2 `.dem` files and provides deep tactical analysis:
 
-![System Architecture](docs/architecture.png)
+- **Mistake Detection** — Flags positioning errors (overpeek, no trade, spacing)
+- **Role Intelligence** — Auto-detects player roles per round (Entry, Lurk, Anchor)
+- **Win Prediction** — Forecasts round outcomes from context
+- **Strategy Clustering** — Identifies team patterns (Execute, Rush, Default)
 
-</div>
-
----
-
-## What It Does
-
-FragAudit reads CS2 demo files and identifies common positioning mistakes:
-
-| Mistake Type | What It Detects | Severity |
-|--------------|-----------------|----------|
-| `dry_peek` | Challenged angle without flash support | MED |
-| `dry_peek_awp` | Dry peeked into AWP | HIGH |
-| `untradeable_death` | Died >400u from teammates | HIGH |
-| `bad_spacing` | Stacked on 2+ teammates | MED |
-| `solo_late_round` | Died alone in late round | MED |
+This is a **backend engine**, not a stats dashboard. It's built for coaches, analysts, and developers who want real tactical insights.
 
 ---
 
-## Key Metric: Trade Potential Score
+## Backend Pillars
 
-**Trade Score** = Percentage of deaths where a teammate was positioned to trade.
+| Module | Version | What It Does |
+|--------|---------|--------------|
+| **Mistakes** | v3.4 | Detects OVERPEEK, NO_TRADE_SPACING, 5 error types |
+| **Roles** | v3.5 | Classifies ENTRY, LURK, ANCHOR, ROTATOR, SUPPORT per round |
+| **WPA** | v3.6 | Contextual win probability (economy, clutch, time multipliers) |
+| **Strategy** | v3.7 | Clusters EXECUTE, RUSH, SPLIT, DEFAULT patterns |
+| **Prediction** | v3.8 | Hand-written logistic regression for P(round_win), P(impact) |
 
-| Score | Interpretation |
-|-------|----------------|
-| 60-100% | Good positioning — deaths are tradeable |
-| 30-59% | Average — some positioning issues |
-| 0-29% | Poor — frequently dying alone |
-
----
-
-## Screenshots
-
-### Report Overview
-<div align="center">
-
-![Report Overview](docs/report_overview.png)
-
-*Issue distribution and match summary*
-
-</div>
-
-### Player Cards
-<div align="center">
-
-![Player Cards](docs/report_players.png)
-
-*Individual player stats with Trade Score and mistake details*
-
-</div>
-
-### Demo Player
-<div align="center">
-
-![Demo Player](docs/demo_player.png)
-
-*Visual playback without CS2 installed*
-
-</div>
-
-### Radar Replay
-<div align="center">
-
-![Radar Replay](docs/radar_replay.gif)
-
-*Animated radar video with player movements, smokes, flashes, and kills*
-
-</div>
+All 5 pillars have explicit coefficients, bounded outputs, and explainable results.  
+**174 unit tests. No ML libraries. No black boxes.**
 
 ---
 
-## Who It's For
+## Quick Example
 
-**Primary:** Competitive players reviewing scrims to fix positioning mistakes.
+```python
+from src.predict import predict_round_win
 
-Also useful for:
-- Coaches analyzing team VODs
-- Analysts building match reports
-- Developers building on demo parsing
+result = predict_round_win(
+    team_economy=1500,   # eco round
+    enemy_economy=4500,  # gun round
+    team_alive=5,
+    enemy_alive=4,       # man advantage
+    mistake_count=1,
+    strategy="EXECUTE_A"
+)
+
+print(f"Win probability: {result.probability:.0%}")  # 43%
+print(f"Dominant factor: {result.dominant_factor}")  # economy
+print(f"Factors: {result.factors}")
+# {'economy': -0.45, 'man_advantage': 0.2, 'mistakes': -0.08, 'strategy': 0.05}
+```
+
+Every prediction shows **why** — factor breakdown included.
 
 ---
 
@@ -113,136 +79,116 @@ pip install -r requirements.txt
 
 Verify:
 ```bash
-python main.py check-parsers
+python -m pytest tests/ -q
+# 174 passed
 ```
 
 ---
 
 ## Usage
 
-### Basic Analysis
+### Analyze a Demo
 ```bash
-python main.py analyze --demo match.dem
+python main.py analyze --demo match.dem --html
 ```
 
 ### Generate Reports
 ```bash
-python main.py analyze --demo match.dem --html      # HTML report
 python main.py analyze --demo match.dem --markdown  # Markdown
 python main.py analyze --demo match.dem --csv       # CSV export
+python main.py analyze --demo match.dem --timeline  # Event stream
 ```
 
 ### AI Coaching (Optional)
 ```bash
-python main.py analyze --demo match.dem --ollama --html
+python main.py analyze --demo match.dem --ollama
 ```
-
-**Example AI Output:**
-```
-Input:
-  dry_peek in Round 7 at A Long
-
-Output:
-  "You challenged A Long without utility — ask for a long flash from CT spawn next time."
-```
-
----
-
-## Sample Output
-
-```
-════════════════════════════════════════════════════════════
-  FRAGAUDIT ANALYSIS
-════════════════════════════════════════════════════════════
-
-  Map: de_ancient
-  Players: 10    Issues: 7
-
-────────────────────────────────────────────────────────────
-  PLAYER BREAKDOWN
-────────────────────────────────────────────────────────────
-
-  MarKE
-    K/D: 2.5  HS: 66.7%  Trade: 50%  Role: Trader
-    ✓ No issues detected
-
-  Gabe
-    K/D: 0.67  HS: 30.0%  Trade: 13%  Role: Trader
-    🟡 [MED] R0 0:30 — dry peek
-
-  Valter0k
-    K/D: 0.47  HS: 71.4%  Trade: 6%  Role: Rotator
-    🟡 [MED] R0 0:30 — dry peek
-
-════════════════════════════════════════════════════════════
-```
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [USAGE.md](docs/USAGE.md) | Step-by-step usage guide |
-| [TECHNICAL.md](docs/TECHNICAL.md) | Algorithms, data structures, architecture |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
 
 ## Project Structure
 
 ```
-FragAudit/
-├── main.py              # Entry point
-├── src/
-│   ├── parser/          # Demo parsing (demoparser2)
-│   ├── features/        # Feature extraction
-│   ├── classifier/      # Mistake detection rules
-│   ├── mistakes/        # Tactical error detectors (v3.4)
-│   ├── roles/           # Role intelligence engine (v3.5)
-│   ├── wpa/             # Contextual WPA calculator (v3.6)
-│   ├── timeline/        # Round event streams
-│   ├── synergy/         # Team chemistry analysis
-│   ├── report/          # JSON/Markdown/HTML output
-│   ├── predict/         # Prediction models (v3.8)
-│   ├── radar/           # Replay video generation
-│   ├── nlp/             # Ollama integration
-│   └── maps/            # Coordinate → callout mapping
-├── tests/               # 174 unit tests
-├── match/               # Demo files
-└── docs/                # Technical documentation
+src/
+├── mistakes/        # Error detection engine (v3.4)
+├── roles/           # Role classification (v3.5)
+├── wpa/             # Contextual WPA calculator (v3.6)
+├── strategy/        # Strategy clustering (v3.7)
+├── predict/         # Win/impact prediction (v3.8)
+├── timeline/        # Round event streams
+├── synergy/         # Team chemistry analysis
+├── radar/           # Replay video generation
+├── parser/          # Demo parsing (demoparser2)
+├── report/          # JSON/Markdown/HTML output
+└── maps/            # Coordinate → callout mapping
+
+tests/               # 174 unit tests
+docs/                # Technical documentation
 ```
+
+---
+
+## Screenshots
+
+<details>
+<summary><b>Report Overview</b></summary>
+<div align="center">
+
+![Report Overview](docs/report_overview.png)
+
+*Issue distribution and match summary*
+
+</div>
+</details>
+
+<details>
+<summary><b>Player Cards</b></summary>
+<div align="center">
+
+![Player Cards](docs/report_players.png)
+
+*Individual player stats with Trade Score and mistake details*
+
+</div>
+</details>
+
+<details>
+<summary><b>Radar Replay</b></summary>
+<div align="center">
+
+![Radar Replay](docs/radar_replay.gif)
+
+*Animated radar with player movements, smokes, flashes, and kills*
+
+</div>
+</details>
 
 ---
 
 ## Roadmap
 
-### Completed
-- [x] v3.0 — Mistake detection, JSON/Markdown reports, demo player
-- [x] v3.1 — HTML reports, Ollama AI, severity labels
-- [x] v3.1.1 — Trade Potential Score, CSV export
-- [x] v3.2 — Kill heatmaps, radar replay video (boltobserv-style)
-- [x] v3.2.1 — Smoke circles, flash radius, kill markers in radar
-- [x] v3.3 — Round timeline, team synergy, dual licensing
-- [x] v3.4 — **Mistake Detection Engine** (OVERPEEK, NO_TRADE_SPACING)
-- [x] v3.5 — **Role Intelligence Engine** (ENTRY, LURK, ANCHOR, SUPPORT)
-- [x] v3.6 — **Contextual WPA** (economy, clutch, time multipliers)
-- [x] v3.7 — **Strategy Clustering** (EXECUTE, RUSH, DEFAULT patterns)
-- [x] v3.8 — **Prediction Model** (round win, player impact)
+### Completed ✓
+- [x] v3.0 — Mistake detection, JSON/Markdown reports
+- [x] v3.1 — HTML reports, Ollama AI integration
+- [x] v3.2 — Kill heatmaps, radar replay video
+- [x] v3.3 — Round timeline, team synergy
+- [x] v3.4 — **Mistake Detection Engine**
+- [x] v3.5 — **Role Intelligence Engine**
+- [x] v3.6 — **Contextual WPA**
+- [x] v3.7 — **Strategy Clustering**
+- [x] v3.8 — **Prediction Model**
 
 ### Backend Complete ✓
 
 ---
 
-## Limitations
+## Known Limitations
 
-1. Round timing is approximated from tick offset
-2. Map callouts may show "Unknown" for unmapped coordinates
-3. Flash detection covers teammate flashes only
-4. Role classification is heuristic-based
-5. Radar replay covers first ~20 minutes (5000 frames) by default
-6. Smoke/Flash durations are visually approximated
+1. Strategy detection uses first contact timing only (no utility patterns yet)
+2. No cross-round memory (each round is independent)
+3. WPA multipliers can stack up to 9x (cap recommended for production)
+4. Roles are per-round, not match-level aggregation
+5. Radar replay covers first ~20 minutes by default
 
 See [TECHNICAL.md](docs/TECHNICAL.md) for details.
 
@@ -250,16 +196,15 @@ See [TECHNICAL.md](docs/TECHNICAL.md) for details.
 
 ## Contributing
 
-GPLv3 licensed — contributions welcome.
+Contributions welcome under GPLv3.
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -v  # Run tests first
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
-
 
 ## License
 
@@ -269,12 +214,14 @@ This project is licensed under [GPLv3](LICENSE).
 
 - Free to use, modify, and distribute
 - Modifications must be open-sourced under GPLv3
-- Commercial use is allowed under GPLv3 terms
+- Commercial use allowed under copyleft terms
 
 ---
 
 <div align="center">
 
-*FragAudit — Turn demos into actionable mistakes.*
+**FragAudit** — Turn demos into tactical intelligence.
+
+*174 tests. 5 backend pillars. No black boxes.*
 
 </div>
