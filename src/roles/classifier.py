@@ -3,27 +3,26 @@
 # Licensed under GPLv3 or commercial license.
 
 """
-Role Classifier
+Role Classifier v2
 Per-round dynamic role detection for CS2 players.
 
-Roles:
-- ENTRY: First contact, aggressive positioning, low survival
-- LURK: High distance from team, late rotates, flanking
-- ANCHOR: Site holder, low mobility, defensive positioning
-- ROTATOR: Mid-round repositioning, support plays
-- SUPPORT: Utility-focused, trades, assists
+FIXED:
+- No more dual classification (CT+T in same round)
+- Real team detection from demo data
+- Spatial metrics (teammate distance) now used
+- Evidence-based confidence with thresholds
+- Minimum score floor for UNKNOWN
 
-Detection based on:
-- Time to first contact
-- Distance from teammates
-- Bomb proximity
-- Kill timing (entry frags vs trades)
-- Flash assists
-- Position in team formation
+Roles:
+- ENTRY: First contact, early kills, aggressive
+- LURK: Far from team, late kills, flanking
+- ANCHOR: Low mobility, site holder (CT)
+- ROTATOR: Mid-round repositioning
+- SUPPORT: Trades, flash assists
 """
 
 from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set
 from enum import Enum
 import math
 
@@ -42,21 +41,14 @@ class RoleType(Enum):
 class RoleAssignment:
     """
     Role assignment for a player in a specific round.
-    
-    Attributes:
-        round: Round number
-        player: Player name
-        steam_id: Steam ID
-        team: CT or T
-        role: Detected role
-        confidence: Confidence score (0.0 - 1.0)
-        metrics: Supporting metrics used for classification
     """
     round: int
     player: str
     team: str
     role: str
     confidence: float
+    raw_score: float = 0.0
+    evidence_count: int = 0
     steam_id: str = ""
     metrics: Optional[Dict[str, float]] = None
     
@@ -73,61 +65,20 @@ def _distance(x1: float, y1: float, x2: float, y2: float) -> float:
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
-def _get_avg_teammate_distance(
-    player_x: float, 
-    player_y: float, 
-    teammates: List[Dict]
-) -> float:
-    """Calculate average distance to teammates."""
-    if not teammates:
-        return 0.0
-    
-    total_dist = 0.0
-    for tm in teammates:
-        tm_x = float(tm.get('x', tm.get('X', 0)) or 0)
-        tm_y = float(tm.get('y', tm.get('Y', 0)) or 0)
-        total_dist += _distance(player_x, player_y, tm_x, tm_y)
-    
-    return total_dist / len(teammates)
-
-
 class RoleClassifier:
     """
-    Classifies player roles per round based on behavioral metrics.
-    
-    Metrics used:
-    - entry_kill: Was this player the first killer in round?
-    - first_death: Was this player the first death?
-    - avg_teammate_dist: Average distance from teammates at key moments
-    - kill_timing: When in round did kills happen (early/late)
-    - trade_given: Did player get traded after death?
-    - trade_taken: Did player trade a teammate's death?
+    Classifies player roles per round based on behavioral + spatial metrics.
     """
     
     # Thresholds
-    LURK_DISTANCE_THRESHOLD = 1500  # Units from team avg
-    ENTRY_TIMING_THRESHOLD = 10000  # First 10s of round
-    ANCHOR_MOBILITY_THRESHOLD = 500  # Low movement
+    LURK_DISTANCE_THRESHOLD = 1800  # Units - must be truly isolated
+    MIN_EVIDENCE_FOR_CONFIDENCE = 2
+    MIN_SCORE_THRESHOLD = 0.25  # Lowered to reduce UNKNOWN
     
-    def __init__(self):
-        self.role_scores: Dict[str, Dict[RoleType, float]] = {}
-    
-    def classify_round(
-        self, 
-        parsed_demo, 
-        round_num: int,
-        team: str = "CT"
-    ) -> List[RoleAssignment]:
+    def classify_round(self, parsed_demo, round_num: int) -> List[RoleAssignment]:
         """
         Classify all players' roles for a specific round.
-        
-        Args:
-            parsed_demo: Parsed demo object
-            round_num: Round to analyze
-            team: Team to classify (CT or T)
-            
-        Returns:
-            List of RoleAssignment objects
+        Team is auto-detected from demo data (no dual classification).
         """
         assignments = []
         
@@ -145,53 +96,125 @@ class RoleClassifier:
         if round_kills.empty:
             return assignments
         
-        # Get unique players who participated
-        players_in_round = set()
-        team_filter = team.upper()
+        # Build player->team mapping from this round's data
+        # Each player belongs to ONE team per round
+        player_teams: Dict[str, str] = {}
+        player_positions: Dict[str, List[Tuple[float, float]]] = {}
         
         for _, kill in round_kills.iterrows():
-            attacker = kill.get('attacker_name', '')
-            attacker_team = str(kill.get('attacker_team_name', ''))
-            victim = kill.get('user_name', kill.get('victim_name', ''))
-            victim_team = str(kill.get('user_team_name', kill.get('victim_team_name', '')))
+            attacker = str(kill.get('attacker_name', '') or '')
+            attacker_team = str(kill.get('attacker_team_name', '') or '')
+            attacker_x = float(kill.get('attacker_X', 0) or 0)
+            attacker_y = float(kill.get('attacker_Y', 0) or 0)
             
-            if team_filter in attacker_team.upper():
-                players_in_round.add(attacker)
-            if team_filter in victim_team.upper():
-                players_in_round.add(victim)
+            victim = str(kill.get('user_name', kill.get('victim_name', '')) or '')
+            victim_team = str(kill.get('user_team_name', kill.get('victim_team_name', '')) or '')
+            victim_x = float(kill.get('user_X', kill.get('victim_X', 0)) or 0)
+            victim_y = float(kill.get('user_Y', kill.get('victim_Y', 0)) or 0)
+            
+            # Store team (first occurrence wins)
+            if attacker and attacker not in player_teams:
+                player_teams[attacker] = self._normalize_team(attacker_team)
+            if victim and victim not in player_teams:
+                player_teams[victim] = self._normalize_team(victim_team)
+            
+            # Store positions for spatial analysis
+            if attacker:
+                if attacker not in player_positions:
+                    player_positions[attacker] = []
+                player_positions[attacker].append((attacker_x, attacker_y))
+            if victim:
+                if victim not in player_positions:
+                    player_positions[victim] = []
+                player_positions[victim].append((victim_x, victim_y))
         
-        # Classify each player
-        for player in players_in_round:
+        # Classify each player (once per round, not per team)
+        for player, team in player_teams.items():
             if not player:
                 continue
             
-            role, confidence, metrics = self._classify_player(
-                round_kills, player, team_filter, round_num
+            role, confidence, raw_score, evidence, metrics = self._classify_player(
+                round_kills, 
+                player, 
+                team, 
+                player_teams,
+                player_positions
             )
             
             assignments.append(RoleAssignment(
                 round=round_num,
                 player=player,
-                team=team_filter,
+                team=team,
                 role=role.value,
                 confidence=confidence,
+                raw_score=raw_score,
+                evidence_count=evidence,
                 metrics=metrics
             ))
         
         return assignments
+    
+    def _normalize_team(self, team_str: str) -> str:
+        """Normalize team name to CT or T."""
+        team_upper = team_str.upper()
+        if 'CT' in team_upper or 'COUNTER' in team_upper:
+            return 'CT'
+        elif 'T' in team_upper or 'TERRORIST' in team_upper:
+            return 'T'
+        return 'UNKNOWN'
+    
+    def _calculate_avg_teammate_distance(
+        self,
+        player: str,
+        player_positions: Dict[str, List[Tuple[float, float]]],
+        player_teams: Dict[str, str]
+    ) -> float:
+        """Calculate average distance from teammates at kill moments."""
+        if player not in player_positions or player not in player_teams:
+            return 0.0
+        
+        player_team = player_teams[player]
+        player_pos = player_positions[player]
+        
+        if not player_pos:
+            return 0.0
+        
+        # Get teammates
+        teammates = [
+            p for p, t in player_teams.items() 
+            if t == player_team and p != player and p in player_positions
+        ]
+        
+        if not teammates:
+            return 0.0
+        
+        # Calculate average distance across all position samples
+        total_dist = 0.0
+        count = 0
+        
+        for px, py in player_pos:
+            for tm in teammates:
+                if player_positions.get(tm):
+                    # Use first position of teammate
+                    tx, ty = player_positions[tm][0]
+                    total_dist += _distance(px, py, tx, ty)
+                    count += 1
+        
+        return total_dist / count if count > 0 else 0.0
     
     def _classify_player(
         self,
         round_kills,
         player: str,
         team: str,
-        round_num: int
-    ) -> Tuple[RoleType, float, Dict[str, float]]:
+        player_teams: Dict[str, str],
+        player_positions: Dict[str, List[Tuple[float, float]]]
+    ) -> Tuple[RoleType, float, float, int, Dict[str, float]]:
         """
-        Classify a single player's role.
+        Classify a single player's role with evidence-based confidence.
         
         Returns:
-            (role, confidence, metrics)
+            (role, confidence, raw_score, evidence_count, metrics)
         """
         metrics = {
             'entry_kill': 0.0,
@@ -201,17 +224,26 @@ class RoleClassifier:
             'trade_taken': 0.0,
             'total_kills': 0.0,
             'total_deaths': 0.0,
+            'avg_teammate_dist': 0.0,
         }
         
-        # Check if player got entry kill
+        evidence_count = 0
+        
+        # Calculate spatial metric - ACTUALLY USE IT NOW
+        avg_dist = self._calculate_avg_teammate_distance(player, player_positions, player_teams)
+        metrics['avg_teammate_dist'] = round(avg_dist, 1)
+        
+        # Entry kill check
         if len(round_kills) > 0:
             first_kill = round_kills.iloc[0]
             if first_kill.get('attacker_name', '') == player:
                 metrics['entry_kill'] = 1.0
+                evidence_count += 1
             
             first_victim = first_kill.get('user_name', first_kill.get('victim_name', ''))
             if first_victim == player:
                 metrics['first_death'] = 1.0
+                evidence_count += 1
         
         # Count kills and deaths
         for _, kill in round_kills.iterrows():
@@ -223,26 +255,39 @@ class RoleClassifier:
             if victim == player:
                 metrics['total_deaths'] += 1
         
-        # Check trade activity
+        if metrics['total_kills'] > 0:
+            evidence_count += 1
+        if metrics['total_deaths'] > 0:
+            evidence_count += 1
+        
+        # Trade activity
         prev_victim = None
         prev_tick = 0
+        prev_victim_team = None
+        
         for _, kill in round_kills.iterrows():
             attacker = kill.get('attacker_name', '')
             victim = kill.get('user_name', kill.get('victim_name', ''))
+            victim_team = str(kill.get('user_team_name', kill.get('victim_team_name', '')))
             tick = int(kill.get('tick', 0))
             
             # Was player traded?
-            if prev_victim == player and (tick - prev_tick) <= 192:  # 3s
+            if prev_victim == player and (tick - prev_tick) <= 192:
                 metrics['trade_given'] = 1.0
+                evidence_count += 1
             
-            # Did player trade?
+            # Did player trade a teammate?
             if attacker == player and prev_victim and (tick - prev_tick) <= 192:
-                metrics['trade_taken'] = 1.0
+                # Check if prev_victim was on same team as player
+                if player_teams.get(prev_victim) == team:
+                    metrics['trade_taken'] = 1.0
+                    evidence_count += 1
             
             prev_victim = victim
+            prev_victim_team = victim_team
             prev_tick = tick
         
-        # Calculate kill timing (early = entry, late = lurk)
+        # Kill timing
         player_kill_ticks = []
         for _, kill in round_kills.iterrows():
             if kill.get('attacker_name', '') == player:
@@ -251,7 +296,7 @@ class RoleClassifier:
         if player_kill_ticks and len(round_kills) > 0:
             first_tick = int(round_kills.iloc[0]['tick'])
             avg_kill_tick = sum(player_kill_ticks) / len(player_kill_ticks)
-            metrics['kill_timing'] = (avg_kill_tick - first_tick) / 1000  # Normalize
+            metrics['kill_timing'] = round((avg_kill_tick - first_tick) / 64, 1)  # Seconds
         
         # Score each role
         role_scores = {
@@ -262,66 +307,93 @@ class RoleClassifier:
             RoleType.SUPPORT: 0.0,
         }
         
-        # ENTRY scoring
+        # ENTRY scoring - strongest signal
         if metrics['entry_kill'] > 0:
-            role_scores[RoleType.ENTRY] += 0.5
+            role_scores[RoleType.ENTRY] += 0.7  # Strong signal
         if metrics['first_death'] > 0 and team == 'T':
-            role_scores[RoleType.ENTRY] += 0.3  # T side entry dies first often
-        if metrics['kill_timing'] < 5:  # Early kills
+            role_scores[RoleType.ENTRY] += 0.2
+        if metrics['kill_timing'] < 3 and metrics['total_kills'] > 0:
             role_scores[RoleType.ENTRY] += 0.2
         
-        # LURK scoring
-        if metrics['kill_timing'] > 15:  # Late kills
+        # LURK scoring - requires BOTH distance AND late timing
+        is_far = metrics['avg_teammate_dist'] > self.LURK_DISTANCE_THRESHOLD
+        is_late = metrics['kill_timing'] > 8
+        is_isolated = metrics['trade_given'] == 0 and metrics['total_deaths'] > 0
+        
+        if is_far and is_late:
+            role_scores[RoleType.LURK] += 0.6  # Strong lurk evidence
+        elif is_far and is_isolated:
             role_scores[RoleType.LURK] += 0.4
-        if metrics['trade_given'] == 0 and metrics['total_deaths'] > 0:
-            role_scores[RoleType.LURK] += 0.3  # Died without trade = isolated
+        elif is_late and is_isolated:
+            role_scores[RoleType.LURK] += 0.3
         
         # SUPPORT scoring
         if metrics['trade_taken'] > 0:
-            role_scores[RoleType.SUPPORT] += 0.5
-        if metrics['total_kills'] == 0 and metrics['total_deaths'] == 0:
-            role_scores[RoleType.SUPPORT] += 0.2  # Survived without kills = support
+            role_scores[RoleType.SUPPORT] += 0.6  # Strong signal
+        if metrics['avg_teammate_dist'] < 600 and metrics['avg_teammate_dist'] > 0:
+            role_scores[RoleType.SUPPORT] += 0.15
         
-        # ANCHOR scoring (CT-focused)
+        # ANCHOR scoring (CT only)
         if team == 'CT':
-            if metrics['first_death'] == 0 and metrics['entry_kill'] == 0:
-                role_scores[RoleType.ANCHOR] += 0.3
-            if metrics['kill_timing'] > 10:
+            if metrics['first_death'] == 0 and metrics['entry_kill'] == 0 and metrics['total_kills'] > 0:
+                role_scores[RoleType.ANCHOR] += 0.4
+            elif metrics['first_death'] == 0 and metrics['total_deaths'] == 0:
+                role_scores[RoleType.ANCHOR] += 0.3  # Survived = site held
+            if metrics['avg_teammate_dist'] < 800 and metrics['avg_teammate_dist'] > 0:
                 role_scores[RoleType.ANCHOR] += 0.2
         
         # ROTATOR scoring
-        if metrics['trade_taken'] > 0 and metrics['kill_timing'] > 5:
+        if metrics['trade_taken'] > 0 and metrics['kill_timing'] > 3:
             role_scores[RoleType.ROTATOR] += 0.4
+        if team == 'CT' and metrics['total_kills'] > 0 and metrics['kill_timing'] > 5:
+            role_scores[RoleType.ROTATOR] += 0.2
         
-        # Normalize and pick best
-        total_score = sum(role_scores.values())
-        if total_score == 0:
-            return RoleType.UNKNOWN, 0.0, metrics
-        
+        # Find best role
         best_role = max(role_scores, key=role_scores.get)
-        confidence = role_scores[best_role] / total_score
+        raw_score = role_scores[best_role]
         
-        # Clamp confidence
-        confidence = min(1.0, max(0.0, confidence))
+        # FALLBACK for low signal players
+        if raw_score < self.MIN_SCORE_THRESHOLD:
+            # Assign default based on team and basic metrics
+            if team == 'CT':
+                if metrics['total_deaths'] == 0:
+                    best_role = RoleType.ANCHOR  # Survived = held site
+                else:
+                    best_role = RoleType.SUPPORT  # Default CT role
+            else:  # T side
+                if metrics['first_death'] > 0:
+                    best_role = RoleType.ENTRY  # First to die on T = entry
+                else:
+                    best_role = RoleType.SUPPORT
+            
+            raw_score = 0.25
+            confidence = 0.3  # Low confidence for fallback
+            return best_role, confidence, raw_score, evidence_count, metrics
         
-        return best_role, round(confidence, 2), metrics
+        # Confidence calculation
+        if evidence_count < self.MIN_EVIDENCE_FOR_CONFIDENCE:
+            confidence = raw_score * 0.5
+        else:
+            sorted_scores = sorted(role_scores.values(), reverse=True)
+            if len(sorted_scores) > 1 and sorted_scores[1] > 0:
+                margin = raw_score - sorted_scores[1]
+                confidence = min(1.0, 0.5 + margin)
+            else:
+                confidence = min(1.0, raw_score)
+        
+        confidence = round(max(0.0, min(1.0, confidence)), 2)
+        
+        return best_role, confidence, round(raw_score, 2), evidence_count, metrics
 
 
-def classify_roles(parsed_demo, team: str = "both") -> List[RoleAssignment]:
+def classify_roles(parsed_demo) -> List[RoleAssignment]:
     """
     Classify roles for all rounds in a demo.
-    
-    Args:
-        parsed_demo: Parsed demo object
-        team: "CT", "T", or "both"
-        
-    Returns:
-        List of all role assignments
+    NO TEAM PARAMETER - team is auto-detected per player.
     """
     classifier = RoleClassifier()
     all_assignments = []
     
-    # Get round numbers
     kills = parsed_demo.kills
     if kills is None or kills.empty:
         return all_assignments
@@ -332,16 +404,9 @@ def classify_roles(parsed_demo, team: str = "both") -> List[RoleAssignment]:
     
     round_nums = sorted(kills[round_col].unique())
     
-    teams = []
-    if team.lower() in ['ct', 'both']:
-        teams.append('CT')
-    if team.lower() in ['t', 'both']:
-        teams.append('T')
-    
     for round_num in round_nums:
-        for t in teams:
-            assignments = classifier.classify_round(parsed_demo, int(round_num), t)
-            all_assignments.extend(assignments)
+        assignments = classifier.classify_round(parsed_demo, int(round_num))
+        all_assignments.extend(assignments)
     
     # Sort by round, then player
     all_assignments.sort(key=lambda a: (a.round, a.player))
@@ -359,10 +424,8 @@ def export_roles_json(assignments: List[RoleAssignment], output_path: str) -> st
     player_role_freq = {}
     
     for a in assignments:
-        # Count by role
         role_counts[a.role] = role_counts.get(a.role, 0) + 1
         
-        # Track player's most common role
         if a.player not in player_role_freq:
             player_role_freq[a.player] = {}
         player_role_freq[a.player][a.role] = player_role_freq[a.player].get(a.role, 0) + 1
@@ -380,7 +443,7 @@ def export_roles_json(assignments: List[RoleAssignment], output_path: str) -> st
             }
     
     output = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "total_assignments": len(assignments),
         "role_distribution": role_counts,
         "player_primary_roles": player_primary_roles,

@@ -4,7 +4,7 @@
 
 """
 Role Intelligence Module
-Per-round dynamic role detection.
+Per-round dynamic role detection with spatial metrics.
 """
 
 from .classifier import (
