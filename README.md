@@ -209,7 +209,7 @@ FragAudit/
 │   ├── radar/           # Replay video generation
 │   ├── nlp/             # Ollama integration
 │   └── maps/            # Coordinate → callout mapping
-├── tests/               # 135 unit tests
+├── tests/               # 151 unit tests
 ├── match/               # Demo files
 └── docs/                # Technical documentation
 ```
@@ -228,9 +228,9 @@ FragAudit/
 - [x] v3.4 — **Mistake Detection Engine** (OVERPEEK, NO_TRADE_SPACING)
 - [x] v3.5 — **Role Intelligence Engine** (ENTRY, LURK, ANCHOR, SUPPORT)
 - [x] v3.6 — **Contextual WPA** (economy, clutch, time multipliers)
+- [x] v3.7 — **Strategy Clustering** (EXECUTE, RUSH, DEFAULT patterns)
 
 ### Planned
-- [ ] v3.7 — Strategy Clustering
 - [ ] v3.8 — Prediction Model
 
 ---

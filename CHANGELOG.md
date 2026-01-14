@@ -5,6 +5,22 @@ All notable changes to the CS2 AI Coach project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-01-14
+
+### 🎯 STRATEGY CLUSTERING ENGINE
+
+Auto-detect team strategies per round.
+
+### Added
+- **Strategy Classifier** (`src/strategy/fingerprint.py`):
+  - T-side: EXECUTE_A/B, RUSH_A/B, SPLIT_A/B, DEFAULT_T, FAKE
+  - CT-side: DEFAULT_CT, STACK_A/B, AGGRESSIVE_CT
+  - Detection from first contact timing and location
+  - Confidence scoring
+- **Tests**: 16 unit tests for strategy detection
+
+---
+
 ## [3.6.0] - 2026-01-14
 
 ### ⚡ CONTEXTUAL WPA ENGINE
