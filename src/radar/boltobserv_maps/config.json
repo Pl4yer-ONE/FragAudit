@@ -1,0 +1,58 @@
+{
+    "_comment": "Boltobserv map configs - GPL-3 licensed from https://github.com/boltgolt/boltobserv",
+    "_attribution": "Radar images and coordinate data from boltobserv by boltgolt, licensed under GPL-3",
+    "de_dust2": {
+        "resolution": 4.40,
+        "offset_x": 2470,
+        "offset_y": 1255,
+        "radar_size": 1024
+    },
+    "de_mirage": {
+        "resolution": 5.02,
+        "offset_x": 3240,
+        "offset_y": 3410,
+        "radar_size": 1024
+    },
+    "de_ancient": {
+        "resolution": 4.26,
+        "offset_x": 2590,
+        "offset_y": 2520,
+        "radar_size": 1024
+    },
+    "de_nuke": {
+        "resolution": 6.98,
+        "offset_x": 3290,
+        "offset_y": 5990,
+        "radar_size": 1024
+    },
+    "de_inferno": {
+        "resolution": 4.91,
+        "offset_x": 2090,
+        "offset_y": 1150,
+        "radar_size": 1024
+    },
+    "de_overpass": {
+        "resolution": 5.20,
+        "offset_x": 4820,
+        "offset_y": 1795,
+        "radar_size": 1024
+    },
+    "de_anubis": {
+        "resolution": 5.25,
+        "offset_x": 2780,
+        "offset_y": 2040,
+        "radar_size": 1024
+    },
+    "de_vertigo": {
+        "resolution": 4.30,
+        "offset_x": 3150,
+        "offset_y": 2530,
+        "radar_size": 1024
+    },
+    "de_train": {
+        "resolution": 4.54,
+        "offset_x": 2440,
+        "offset_y": 2505,
+        "radar_size": 1024
+    }
+}

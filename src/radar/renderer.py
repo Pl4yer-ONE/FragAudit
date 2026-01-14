@@ -67,9 +67,19 @@ class RadarRenderer:
         self.map_image = self._load_map_image()
         
     def _load_map_image(self) -> Optional[Image.Image]:
-        """Load radar map image."""
-        assets_dir = Path(__file__).parent.parent.parent / "assets" / "maps"
+        """Load radar map image. Prioritizes boltobserv assets (GPL-3)."""
+        # First: check boltobserv maps (GPL-3 licensed from https://github.com/boltgolt/boltobserv)
+        boltobserv_dir = Path(__file__).parent / "boltobserv_maps"
+        boltobserv_path = boltobserv_dir / f"{self.map_name}.png"
         
+        if boltobserv_path.exists():
+            img = Image.open(boltobserv_path).convert("RGBA")
+            if img.size != (self.resolution, self.resolution):
+                img = img.resize((self.resolution, self.resolution), Image.Resampling.LANCZOS)
+            return img
+        
+        # Fallback: original assets
+        assets_dir = Path(__file__).parent.parent.parent / "assets" / "maps"
         for name in [f"{self.map_name}_radar.png", f"{self.map_name}.png"]:
             path = assets_dir / name
             if path.exists():

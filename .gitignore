@@ -52,3 +52,7 @@ htmlcov/
 debug_*.py
 TEST_REPORT.txt
 TEST_REPORT_FOR_GPT.txt
+
+# Allow boltobserv config
+!src/radar/boltobserv_maps/config.json
+!src/radar/boltobserv_maps/*.png
