@@ -36,6 +36,6 @@ We follow a sustainable **Open Core** model:
 
 To obtain a commercial license or discuss enterprise needs:
 
-📧 **licensing@fragaudit.com**
+📧 **FragAudit@proton.me**
 
 *Revenue from commercial licenses supports the ongoing open-source development of FragAudit.*
