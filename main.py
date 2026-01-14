@@ -143,7 +143,12 @@ For more information, see README.md
     analyze_parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help="Verbose output"
+        help="Show detailed output"
+    )
+    analyze_parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run performance benchmark (time, memory, throughput)"
     )
     
     # =========================================================================
@@ -189,6 +194,10 @@ def run_play(args) -> int:
 
 def run_analyze(args) -> int:
     """Run demo analysis."""
+    import time
+    import tracemalloc
+    import json as json_module
+    
     # Validate demo file
     demo_path = Path(args.demo)
     if not demo_path.exists():
@@ -199,6 +208,13 @@ def run_analyze(args) -> int:
         print(f"Warning: File does not have .dem extension: {args.demo}")
     
     verbose = getattr(args, 'verbose', False)
+    benchmark = getattr(args, 'benchmark', False)
+    
+    # Start benchmark tracking
+    if benchmark:
+        tracemalloc.start()
+        total_start = time.perf_counter()
+        parse_start = total_start
     
     if verbose:
         print(f"Analyzing demo: {demo_path}")
@@ -208,6 +224,10 @@ def run_analyze(args) -> int:
         print("Parsing demo file...")
         demo_parser = DemoParser(str(demo_path), parser=args.parser)
         parsed_demo = demo_parser.parse()
+        
+        if benchmark:
+            parse_time = time.perf_counter() - parse_start
+            analyze_start = time.perf_counter()
         
         if verbose:
             print(f"  Parser used: {demo_parser.parser_type}")
@@ -503,6 +523,55 @@ def run_analyze(args) -> int:
         
         # Print summary
         generator.print_summary(report)
+        
+        # Benchmark results
+        if benchmark:
+            total_time = time.perf_counter() - total_start
+            current, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            
+            # Count events
+            events_count = len(parsed_demo.kills) + len(parsed_demo.damages)
+            if hasattr(parsed_demo, 'rounds') and parsed_demo.rounds is not None:
+                rounds_count = len(parsed_demo.rounds)
+            else:
+                rounds_count = 0
+            
+            benchmark_results = {
+                "demo": str(demo_path),
+                "map": parsed_demo.map_name,
+                "parse_time_sec": round(parse_time, 3),
+                "analyze_time_sec": round(total_time - parse_time, 3),
+                "total_runtime_sec": round(total_time, 3),
+                "peak_memory_mb": round(peak / 1024 / 1024, 2),
+                "events_processed": events_count,
+                "events_per_sec": round(events_count / total_time, 1) if total_time > 0 else 0,
+                "rounds_count": rounds_count,
+                "rounds_per_sec": round(rounds_count / total_time, 1) if total_time > 0 else 0,
+                "status": "PASS" if total_time < 5 and peak / 1024 / 1024 < 500 else "FAIL"
+            }
+            
+            # Print benchmark results
+            print("\n" + "="*60)
+            print("  BENCHMARK RESULTS")
+            print("="*60)
+            print(f"  Demo: {demo_path.name}")
+            print(f"  Parse Time:    {benchmark_results['parse_time_sec']:.3f}s")
+            print(f"  Analysis Time: {benchmark_results['analyze_time_sec']:.3f}s")
+            print(f"  Total Runtime: {benchmark_results['total_runtime_sec']:.3f}s")
+            print(f"  Peak Memory:   {benchmark_results['peak_memory_mb']:.1f} MB")
+            print(f"  Events:        {events_count} ({benchmark_results['events_per_sec']:.0f}/sec)")
+            print(f"  Rounds:        {rounds_count} ({benchmark_results['rounds_per_sec']:.1f}/sec)")
+            print(f"  Status:        {benchmark_results['status']}")
+            print("="*60)
+            
+            # Save benchmark JSON
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            benchmark_path = f"reports/benchmark_{timestamp}.json"
+            with open(benchmark_path, 'w') as f:
+                json_module.dump(benchmark_results, f, indent=2)
+            print(f"Benchmark saved: {benchmark_path}")
         
         return 0
         

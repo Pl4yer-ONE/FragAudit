@@ -1,0 +1,162 @@
+================================================================================
+                     FRAGAUDIT TEST REPORT (v3.3.0)
+                     Generated: 2026-01-14 07:43 IST
+================================================================================
+
+PROJECT: FragAudit - CS2 Demo Analysis Engine
+REPO: https://github.com/Pl4yer-ONE/FragAudit
+LICENSE: Dual (GPLv3 + Commercial)
+
+================================================================================
+                              CLEANUP PERFORMED
+================================================================================
+
+Removed:
+  - reports/ (old outputs)
+  - __pycache__/ (all)
+  - .pytest_cache/
+
+================================================================================
+                              UNIT TEST RESULTS
+================================================================================
+
+Test Command: python -m pytest tests/ -v
+Result: 48/48 PASSED (0.76s)
+
+Tests by Module:
+  - test_calibration.py: 14 passed (scoring calibration)
+  - test_map_coords.py: 12 passed (coordinate transforms)
+  - test_synergy.py: 12 passed (duo/team metrics)
+  - test_timeline.py: 10 passed (event taxonomy)
+
+Key Test Categories:
+  [x] TimelineEvent creation and metadata
+  [x] Event type taxonomy (18 frozen types)
+  [x] Event sorting by timestamp
+  [x] Monotonic timestamp validation
+  [x] Duo symmetry (A,B == B,A)
+  [x] Trade success rate calculation
+  [x] Zero-division safety
+  [x] Coordinate transforms (world <-> radar)
+
+================================================================================
+                           DEMO ANALYSIS OUTPUT
+================================================================================
+
+Command: python main.py analyze --demo match/phoenix-vs-rave-m1-nuke.dem --html --timeline --heatmap
+
+Demo: match/phoenix-vs-rave-m1-nuke.dem
+Map: de_nuke
+Players: 10
+Issues Detected: 6 (dry_peek)
+
+Generated Files:
+  1. coaching_report_20260114_074356.json (8.9 KB) - Full analysis
+  2. report_20260114_074356.html (155 KB) - Visual report
+  3. timeline_20260114_074356.json (3.4 KB) - Per-round events
+  4. timeline_20260114_074356.csv (498 B) - Flat event export
+  5. heatmaps/20260114_074356/nuke/kills.png - Kill density
+
+================================================================================
+                           TIMELINE JSON SCHEMA
+================================================================================
+
+Schema Version: 1.0
+
+Structure:
+{
+  "match_id": "string",
+  "map": "string",
+  "schema_version": "1.0",
+  "rounds": [
+    {
+      "round": int,
+      "start_tick": int,
+      "end_tick": int,
+      "events": [
+        {
+          "tick": int,
+          "timestamp_ms": int,
+          "event": "EventType",
+          "player": "string",
+          "team": "CT|T",
+          "wpa_delta": float,
+          ...optional fields
+        }
+      ]
+    }
+  ]
+}
+
+Event Types (Frozen Taxonomy):
+  KILL, DEATH, TRADE, ASSIST, DAMAGE
+  FLASH_ASSIST, SMOKE_BLOCK, MOLLY_DAMAGE, UTILITY_THROW
+  ENTRY_KILL, CLUTCH_START, CLUTCH_WIN
+  PLANT, DEFUSE, BOMB_DROPPED
+  ROUND_START, ROUND_END
+
+================================================================================
+                           NEW MODULES (v3.3)
+================================================================================
+
+1. src/timeline/
+   - events.py: TimelineEvent dataclass, EventType enum
+   - builder.py: TimelineBuilder, RoundTimeline
+   - exporter.py: JSON/CSV export functions
+
+2. src/synergy/
+   - duo.py: DuoStats, compute_duo_metrics
+   - team.py: TeamStats, compute_team_metrics
+
+3. CLI Integration:
+   - --timeline flag added to main.py analyze command
+
+================================================================================
+                           LICENSE STATUS
+================================================================================
+
+LICENSE file: GNU General Public License v3.0 (GPLv3)
+COMMERCIAL.md: Present (for proprietary licensing)
+CONTRIBUTING.md: CLA clause included
+Source Headers: 51 files updated with copyright notice
+
+Header Format:
+  # Copyright (c) 2026 Pl4yer-ONE
+  # This file is part of FragAudit.
+  # Licensed under GPLv3 or commercial license.
+
+================================================================================
+                           SAMPLE PLAYER OUTPUT
+================================================================================
+
+  MarKE
+    K/D: 2.71  HS: 57.9%  Trade: 28%  Role: Entry
+    ✓ No issues detected
+
+  mds
+    K/D: 0.36  HS: 20.0%  Trade: 14%  Role: Trader
+    🟡 [MED] R0 0:30 — dry peek
+
+  junior
+    K/D: 4.0  HS: 62.5%  Trade: 0%  Role: SiteAnchor
+    ✓ No issues detected
+
+================================================================================
+                              VERIFICATION
+================================================================================
+
+[x] All 48 unit tests pass
+[x] Demo parsing succeeds
+[x] JSON report generated
+[x] HTML report generated
+[x] Heatmap generated and embedded
+[x] Timeline JSON/CSV generated
+[x] Schema version 1.0 frozen
+[x] Dual license correctly applied
+[x] Source headers present
+
+STATUS: ALL CHECKS PASSED ✓
+
+================================================================================
+                         END OF TEST REPORT
+================================================================================
