@@ -5,6 +5,39 @@ All notable changes to the CS2 AI Coach project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-01-14
+
+### 🎬 RADAR v2 ENGINE
+
+Complete radar replay overhaul with professional visuals.
+
+### Added
+- **Boltobserv-style radar** (`src/radar/renderer.py`):
+  - Player view cones showing look direction
+  - Numbered players (CT: 1-5, T: 6-10)
+  - Team colors (#4A90D9 CT, #D9A441 T)
+  - Muzzle flash glow indicator
+  - Flashbang effect overlay
+- **Player data fields** (`src/radar/extractor.py`):
+  - yaw (view angle for direction cone)
+  - is_shooting (muzzle flash trigger)
+  - is_flashed (flashbang effect trigger)
+- **Boltobserv map images** (`src/radar/boltobserv_maps/`):
+  - 9 high-quality radar backgrounds (GPL-3)
+  - Coordinate config from boltobserv source
+- **Attribution**: THIRDPARTY.md with proper GPL-3 credits
+
+### Fixed
+- Y-axis alignment formula from boltobserv source
+- Coordinate transform: `pixel_y = 1024 - ((y + offset_y) / resolution)`
+
+### Tests
+- 174 unit tests pass
+- 3x radar generation tests (dust2, mirage, ancient)
+
+---
+
+
 ## [3.8.0] - 2026-01-14
 
 ### 🔮 PREDICTION MODEL ENGINE
