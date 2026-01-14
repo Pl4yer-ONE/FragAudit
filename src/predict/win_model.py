@@ -158,11 +158,13 @@ class WinPredictor:
         role_contrib = role_score * self.coef["role_max"]
         factors["roles"] = round(role_contrib, 3)
         
-        # MISTAKES: linear penalty
+        # MISTAKES: linear penalty, capped
         mistake_contrib = (
             features.mistake_count * self.coef["mistake_count"] +
             features.high_severity_count * self.coef["high_severity"]
         )
+        # Cap at -0.6 (6 regular mistakes max effect)
+        mistake_contrib = max(-0.6, mistake_contrib)
         factors["mistakes"] = round(mistake_contrib, 3)
         
         # STRATEGY
