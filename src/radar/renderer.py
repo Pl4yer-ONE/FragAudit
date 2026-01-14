@@ -138,6 +138,13 @@ class RadarRenderer:
         
         # Load map image
         self.map_image = self._load_map_image()
+        
+        # OPTIMIZATION: Create reusable figure and ax (avoid plt.subplots per frame)
+        dpi = 100
+        fig_size = self.resolution / dpi
+        self._fig, self._ax = plt.subplots(figsize=(fig_size, fig_size), dpi=dpi)
+        self._fig.patch.set_facecolor('#1a1a2e')
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     
     def _convert_coords(
         self,
@@ -185,14 +192,9 @@ class RadarRenderer:
         Returns:
             Path to saved frame PNG
         """
-        # Use resolution-based figsize for pixel-perfect output
-        dpi = 100
-        fig_size = self.resolution / dpi
-        fig, ax = plt.subplots(figsize=(fig_size, fig_size), dpi=dpi)
-        fig.patch.set_facecolor('#1a1a2e')
-        
-        # Remove all margins for exact pixel alignment
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        # OPTIMIZATION: Reuse cached figure/ax, just clear and redraw
+        ax = self._ax
+        ax.clear()
         
         # Draw map background with exact extent matching axes
         if self.map_image:
@@ -264,11 +266,11 @@ class RadarRenderer:
             bbox=dict(facecolor='black', alpha=0.5, edgecolor='none', pad=2)
         )
         
-        # Save frame - NO bbox_inches to maintain exact pixel alignment
+        # Save frame - use cached _fig, NO bbox_inches to maintain exact pixel alignment
         frame_path = self.output_dir / f"frame_{frame_num:05d}.png"
-        plt.savefig(frame_path, dpi=dpi, facecolor='#1a1a2e', 
+        self._fig.savefig(frame_path, dpi=100, facecolor='#1a1a2e', 
                    pad_inches=0, bbox_inches=None)
-        plt.close(fig)
+        # Don't close - reusing cached figure
         
         return str(frame_path)
     

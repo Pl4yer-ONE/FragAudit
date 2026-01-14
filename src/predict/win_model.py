@@ -31,7 +31,7 @@ COEFFICIENTS = {
     "economy_diff": 0.8,          # Max ±0.8 log-odds from economy
     
     # Man advantage (normalized to [-1, 1])
-    "man_advantage": 0.6,         # Max ±0.6 log-odds from numbers
+    "man_advantage": 1.2,         # 5v3 = 0.4 * 1.2 = 0.48 log-odds → ~62%
     
     # Role quality (capped total contribution)
     "role_max": 0.15,             # Max role contribution
