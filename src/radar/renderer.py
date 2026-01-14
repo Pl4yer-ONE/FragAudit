@@ -51,11 +51,16 @@ def boltobserv_to_radar(
     """
     Convert CS2 world coordinates to radar pixels using boltobserv formula.
     
-    Boltobserv formula:
-        px = (world_x + offset_x) / resolution
-        py = (offset_y - world_y) / resolution  # Y is inverted
+    From boltobserv source (_global.js):
+        gamePosition = position[axis] + offset[axis]
+        pixelPosition = gamePosition / resolution
+        precPosition = pixelPosition / 1024 * 100  (for percentage)
     
-    Returns pixel coordinates for the 1024x1024 boltobserv radar.
+    Then Y is inverted for display: y_svg = 100 - y_percent
+    
+    For 1024px output:
+        pixel_x = (world_x + offset_x) / resolution
+        pixel_y = 1024 - ((world_y + offset_y) / resolution)  # Inverted for display
     """
     config = load_boltobserv_config()
     map_cfg = config.get(map_name, {})
@@ -71,10 +76,12 @@ def boltobserv_to_radar(
     offset_y = map_cfg.get("offset_y", 0)
     resolution = map_cfg.get("resolution", 1.0)  # Units per pixel
     
-    # Boltobserv coordinate transform
-    # Y is inverted (positive Y goes up in-game, down on radar)
+    # Boltobserv coordinate transform (from source)
     pixel_x = (x + offset_x) / resolution
-    pixel_y = (offset_y - y) / resolution
+    pixel_y = (y + offset_y) / resolution
+    
+    # Invert Y for display (boltobserv does 100% - y%)
+    pixel_y = 1024 - pixel_y
     
     # Scale if radar image is not 1024
     if img_size != 1024:
