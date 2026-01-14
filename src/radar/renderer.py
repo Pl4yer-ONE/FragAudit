@@ -327,6 +327,29 @@ class RadarRenderer:
         if not player.alive:
             ax.scatter(px, py, marker='x', c='white', s=60, alpha=0.6, zorder=6, linewidths=2)
         
+        # Draw muzzle flash glow when shooting (boltobserv style)
+        if player.alive and getattr(player, 'is_shooting', False):
+            # Orange glow around player when firing
+            ax.scatter(
+                px, py,
+                c='#FF6600',
+                s=circle_size ** 2 * 2.5,
+                alpha=0.5,
+                zorder=4,
+                edgecolors='#FF9900',
+                linewidth=3
+            )
+        
+        # Draw flashbang effect (white glow when flashed)
+        if player.alive and getattr(player, 'is_flashed', False):
+            ax.scatter(
+                px, py,
+                c='white',
+                s=circle_size ** 2 * 2,
+                alpha=0.7,
+                zorder=4
+            )
+        
         # Draw viewing direction (cone) for alive players
         if player.alive and hasattr(player, 'yaw'):
             self._draw_view_cone(ax, px, py, getattr(player, 'yaw', 0), fill_color)

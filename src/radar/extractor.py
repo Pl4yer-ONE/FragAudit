@@ -26,6 +26,9 @@ class PlayerFrame:
     team: str  # "CT" or "T"
     alive: bool
     health: int
+    yaw: float = 0.0  # View angle for direction cone
+    is_shooting: bool = False  # Muzzle flash indicator
+    is_flashed: bool = False  # Flashbang effect
 
 
 @dataclass
@@ -240,7 +243,10 @@ def extract_ticks(
                 z=z,
                 team=team,
                 alive=alive,
-                health=health
+                health=health,
+                yaw=float(row.get('yaw', row.get('eye_angle_yaw', 0))),
+                is_shooting=False,  # Will be set based on weapon fire events
+                is_flashed=False    # Could be set based on flash blind data
             ))
         
         if players:
