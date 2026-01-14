@@ -7,7 +7,6 @@
 **Parses CS2 demos and flags positional mistakes using rule-based analysis.**
 
 [![GPLv3 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Commercial License](https://img.shields.io/badge/License-Commercial-purple.svg)](docs/COMMERCIAL.md)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/Pl4yer-ONE/FragAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/Pl4yer-ONE/FragAudit/actions)
 
@@ -260,19 +259,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
+
 ## License
 
-**FragAudit is Dual-Licensed:**
+**GNU General Public License v3.0**
 
-1.  **Community Use**: [GNU GPLv3](LICENSE)
-    - Free for open source and personal use.
-    - Modifications must be open-sourced.
+This project is licensed under [GPLv3](LICENSE).
 
-2.  **Commercial Use**: [Commercial License](docs/COMMERCIAL.md)
-    - For proprietary applications, closed-source distribution, and enterprise use.
-    - [Contact us](docs/COMMERCIAL.md) for pricing.
-
-*By using this software, you agree to the terms of one of these licenses.*
+- Free to use, modify, and distribute
+- Modifications must be open-sourced under GPLv3
+- Commercial use is allowed under GPLv3 terms
 
 ---
 
