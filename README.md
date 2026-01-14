@@ -153,14 +153,22 @@ docs/                # Technical documentation
 </details>
 
 <details>
-<summary><b>Radar Replay</b></summary>
+<summary><b>Radar Replay (Powered by Boltobserv)</b></summary>
 <div align="center">
 
-![Radar Replay](docs/radar_replay.gif)
+![Radar Replay](docs/radar_preview.gif)
 
-*Animated radar with player movements, smokes, flashes, and kills*
+*Boltobserv-style radar with numbered players, view cones, smokes, and kills*
 
 </div>
+
+```bash
+python main.py analyze --demo match.dem --radar
+# Output: reports/radar_*.mp4
+```
+
+Radar images from [boltobserv](https://github.com/boltgolt/boltobserv) (GPL-3).
+
 </details>
 
 ---
