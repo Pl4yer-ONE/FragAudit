@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.3.0] - 2026-01-14
 
-### ⚖️ DUAL LICENSE MODEL
+### 📊 TIMELINE + DUAL LICENSE
 
-Strategic pivot to sustainable open-source.
+Backend-first release with per-round event streams and sustainable licensing.
+
+### Added
+- **Timeline Module** (`src/timeline/`):
+  - `TimelineEvent` dataclass with frozen event taxonomy
+  - `TimelineBuilder` for per-round event extraction
+  - JSON/CSV exporters with schema v1.0
+- **Synergy Module** (`src/synergy/`):
+  - `DuoStats` for player pair trade/flash metrics
+  - `TeamStats` for entry/postplant metrics
+- **CLI**: `--timeline` flag for event stream export
+- **Tests**: 22 new unit tests for timeline/synergy
 
 ### Changed
 - **License**: Switched to **Dual License** strategy:
@@ -17,6 +28,7 @@ Strategic pivot to sustainable open-source.
   - **Commercial License** for proprietary/closed-source usage
 - **README**: Updated badging and license sections
 - **Docs**: Added `docs/COMMERCIAL.md`
+- **Headers**: Applied copyright headers to 51 source files
 
 ## [3.1.0] - 2026-01-13
 

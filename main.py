@@ -120,6 +120,11 @@ For more information, see README.md
         action="store_true",
         help="Generate GIF preview of radar"
     )
+    analyze_parser.add_argument(
+        "--timeline",
+        action="store_true",
+        help="Generate per-round event timeline (JSON)"
+    )
     
     analyze_parser.add_argument(
         "--player",
@@ -367,6 +372,32 @@ def run_analyze(args) -> int:
                     with open(html_path, 'w') as f:
                         f.write(html_content)
                     print(f"Heatmap embedded in HTML report")
+        
+        # Timeline generation (v3.3)
+        if getattr(args, 'timeline', False):
+            from src.timeline import TimelineBuilder, export_timeline_json, export_timeline_csv
+            from datetime import datetime
+            
+            print("Generating event timeline...")
+            builder = TimelineBuilder(parsed_demo)
+            timelines = builder.build()
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # JSON export
+            json_path = f"reports/timeline_{timestamp}.json"
+            export_timeline_json(
+                timelines,
+                json_path,
+                match_id=str(demo_path),
+                map_name=parsed_demo.map_name
+            )
+            print(f"Timeline JSON: {json_path}")
+            
+            # CSV export
+            csv_path = f"reports/timeline_{timestamp}.csv"
+            export_timeline_csv(timelines, csv_path)
+            print(f"Timeline CSV: {csv_path}")
         
         # Radar video generation
         if getattr(args, 'radar', False) or getattr(args, 'gif', False):
