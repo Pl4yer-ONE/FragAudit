@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Pl4yer-ONE
+# This file is part of FragAudit.
+# Licensed under GPLv3 or commercial license.
+
 """
 Unit tests for map coordinate transformation module.
 Updated to match current API (pos_x, pos_y, scale based).

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Pl4yer-ONE
+# This file is part of FragAudit.
+# Licensed under GPLv3 or commercial license.
+
 """
 CS2 Demo Parser Wrapper
 Uses demoparser2 as primary parser with awpy as alternative.

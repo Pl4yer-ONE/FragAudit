@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Pl4yer-ONE
+# This file is part of FragAudit.
+# Licensed under GPLv3 or commercial license.
+
 """
 Enhanced Heatmap Generation Module
 Professional-quality heatmaps with map overlays, round phases, and high-res output.
