@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Major release switching to MIT license and focusing on usability.
 
 ### Changed
-- **License**: Switched from PolyForm Noncommercial to **MIT** — use it however you want
+- **License**: Confirmed **MIT** — use it however you want
 - **README**: Complete rewrite — honest, no buzzwords, clear limitations
 - **Output Format**: Mistakes now show round, time, and map location
 - **CONTRIBUTING.md**: Simplified for open contribution
@@ -23,16 +23,15 @@ Major release switching to MIT license and focusing on usability.
 - **Player Names**: Mistakes now tagged with player name for clarity
 
 ### Removed
-- COMMERCIAL.md — no longer needed with MIT license
+- COMMERCIAL.md — removed
 - Buzzwords: "deterministic auditing", "exploit-resistant", "forensic analysis"
 
 ---
 
-## [3.0.1] - License Lockdown (Deprecated)
+## [3.0.1] - License Update (Deprecated)
 
 ### Changed
-- Previously used PolyForm Noncommercial
-- Now replaced by MIT in v3.1.0
+- Internal license updates
 
 ## [3.0.0] - 2026-01-12
 
@@ -141,7 +140,7 @@ Major release introducing standalone demo playback without CS2 installed.
 
 ### Added
 - **Floor Clamp**: Minimum rating of 15 (no more zeros)
-- **License Added**: MIT (later changed to PolyForm Noncommercial in v3.0.1)
+- **License Added**: MIT
 - `team_id` field in PlayerFeatures for proper team assignment
 
 ### Changed
