@@ -141,7 +141,7 @@ def _run_analysis(
                 # Render frames with progress updates
                 total_frames = len(frames)
                 for i, frame in enumerate(frames):
-                    renderer.render_frame(frame, f"frame_{i:05d}.png")
+                    renderer.render_frame(frame, i)  # Fixed: pass frame index, not filename
                     if i % 50 == 0:
                         frame_progress = 0.80 + (i / total_frames) * 0.15
                         progress(frame_progress, f"Rendering frame {i}/{total_frames}...")
