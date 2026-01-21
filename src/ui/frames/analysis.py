@@ -362,14 +362,14 @@ class AnalysisFrame(ctk.CTkFrame):
             text_color=COLORS["text_primary"]
         ).pack(side="left", pady=(12, 0))
         
-        # Stats grid
+        # Stats grid - Core stats
         stat_rows = [
             ("Kills", stats.get("kills", 0)),
             ("Deaths", stats.get("deaths", 0)),
             ("Assists", stats.get("assists", 0)),
             ("ADR", f"{stats.get('adr', 0):.1f}"),
             ("KAST", f"{stats.get('kast', 0):.1f}%"),
-            ("Headshot %", f"{stats.get('headshot_percentage', 0):.1f}%"),
+            ("HS%", f"{stats.get('headshot_percentage', 0):.1f}%"),
         ]
         
         for label, value in stat_rows:
@@ -386,6 +386,96 @@ class AnalysisFrame(ctk.CTkFrame):
                 text_color=COLORS["text_primary"]
             ).pack(side="right")
         
+        # Advanced Stats Section - Opening Duels
+        ctk.CTkLabel(
+            self.detail_content,
+            text="\n⚔️ Opening Duels",
+            font=FONTS["subheading"],
+            text_color=COLORS["text_primary"]
+        ).pack(anchor="w", pady=(10, 5))
+        
+        entry_kills = stats.get("entry_kills", 0)
+        entry_deaths = stats.get("entry_deaths", 0)
+        entry_total = entry_kills + entry_deaths
+        entry_rate = (entry_kills / entry_total * 100) if entry_total > 0 else 0
+        
+        entry_color = COLORS["accent_green"] if entry_rate >= 50 else COLORS["rating_low"]
+        
+        entry_row = ctk.CTkFrame(self.detail_content, fg_color="transparent")
+        entry_row.pack(fill="x")
+        ctk.CTkLabel(
+            entry_row, text=f"{entry_kills}W - {entry_deaths}L",
+            font=FONTS["mono"], text_color=COLORS["text_primary"]
+        ).pack(side="left")
+        ctk.CTkLabel(
+            entry_row, text=f"{entry_rate:.0f}%",
+            font=FONTS["body_bold"], text_color=entry_color
+        ).pack(side="right")
+        
+        # Clutches
+        clutch_1v1_won = stats.get("clutches_1v1_won", 0)
+        clutch_1v1_total = stats.get("clutches_1v1_attempted", 0)
+        clutch_1vn_won = stats.get("clutches_1vN_won", 0)
+        clutch_1vn_total = stats.get("clutches_1vN_attempted", 0)
+        
+        if clutch_1v1_total > 0 or clutch_1vn_total > 0:
+            ctk.CTkLabel(
+                self.detail_content,
+                text="\n🏆 Clutches",
+                font=FONTS["subheading"],
+                text_color=COLORS["text_primary"]
+            ).pack(anchor="w", pady=(10, 5))
+            
+            clutch_stats = []
+            if clutch_1v1_total > 0:
+                clutch_stats.append(f"1v1: {clutch_1v1_won}/{clutch_1v1_total}")
+            if clutch_1vn_total > 0:
+                clutch_stats.append(f"1vN: {clutch_1vn_won}/{clutch_1vn_total}")
+            
+            ctk.CTkLabel(
+                self.detail_content,
+                text="  •  ".join(clutch_stats),
+                font=FONTS["mono"],
+                text_color=COLORS["accent_green"] if (clutch_1v1_won + clutch_1vn_won) > 0 else COLORS["text_secondary"]
+            ).pack(anchor="w")
+        
+        # Impact Stats
+        impact = stats.get("total_wpa", 0)
+        multikills = stats.get("multikills", 0)
+        
+        if impact != 0 or multikills > 0:
+            ctk.CTkLabel(
+                self.detail_content,
+                text="\n📈 Impact",
+                font=FONTS["subheading"],
+                text_color=COLORS["text_primary"]
+            ).pack(anchor="w", pady=(10, 5))
+            
+            impact_row = ctk.CTkFrame(self.detail_content, fg_color="transparent")
+            impact_row.pack(fill="x")
+            
+            impact_color = COLORS["accent_green"] if impact > 0 else COLORS["rating_low"] if impact < 0 else COLORS["text_secondary"]
+            ctk.CTkLabel(
+                impact_row, text="WPA",
+                font=FONTS["body"], text_color=COLORS["text_secondary"]
+            ).pack(side="left")
+            ctk.CTkLabel(
+                impact_row, text=f"{impact:+.2f}",
+                font=FONTS["body_bold"], text_color=impact_color
+            ).pack(side="right")
+            
+            if multikills > 0:
+                mk_row = ctk.CTkFrame(self.detail_content, fg_color="transparent")
+                mk_row.pack(fill="x")
+                ctk.CTkLabel(
+                    mk_row, text="Multi-kill Rounds",
+                    font=FONTS["body"], text_color=COLORS["text_secondary"]
+                ).pack(side="left")
+                ctk.CTkLabel(
+                    mk_row, text=str(multikills),
+                    font=FONTS["body_bold"], text_color=COLORS["accent_blue"]
+                ).pack(side="right")
+        
         # Role section
         role_data = player_data.get("role", {})
         if role_data:
@@ -394,7 +484,7 @@ class AnalysisFrame(ctk.CTkFrame):
                 text="\n🎯 Role",
                 font=FONTS["subheading"],
                 text_color=COLORS["text_primary"]
-            ).pack(anchor="w", pady=(15, 5))
+            ).pack(anchor="w", pady=(10, 5))
             
             ctk.CTkLabel(
                 self.detail_content,
@@ -411,7 +501,7 @@ class AnalysisFrame(ctk.CTkFrame):
                 text=f"\n⚠️ {len(mistakes)} issues found",
                 font=FONTS["subheading"],
                 text_color=COLORS["accent_yellow"]
-            ).pack(anchor="w", pady=(15, 5))
+            ).pack(anchor="w", pady=(10, 5))
             
             # View mistakes button
             ctk.CTkButton(
