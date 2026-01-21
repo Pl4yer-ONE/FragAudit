@@ -116,9 +116,9 @@ def _run_analysis(
             from src.radar.fast_renderer import FastRadarRenderer
             from src.radar import RadarRenderer
             
-            # Extract ticks
-            tick_interval = 16
-            max_frames = 1000  # Limit for UI preview
+            # Extract ticks - reduced for fast UI preview
+            tick_interval = 32  # Skip more ticks for speed
+            max_frames = 500   # Limit for smooth UI playback
             
             frames = extract_ticks(parsed_demo, tick_interval=tick_interval, max_ticks=max_frames)
             
@@ -138,19 +138,19 @@ def _run_analysis(
                         show_names=False
                     )
                 
-                # Render frames with progress updates
+                # Render frames with frequent progress updates
                 total_frames = len(frames)
                 for i, frame in enumerate(frames):
-                    renderer.render_frame(frame, i)  # Fixed: pass frame index, not filename
-                    if i % 50 == 0:
+                    renderer.render_frame(frame, i)
+                    if i % 25 == 0:  # Update every 25 frames
                         frame_progress = 0.80 + (i / total_frames) * 0.15
-                        progress(frame_progress, f"Rendering frame {i}/{total_frames}...")
+                        progress(frame_progress, f"Rendering radar {i}/{total_frames}...")
                 
-                progress(0.95, f"Rendered {total_frames} radar frames...")
+                progress(0.95, f"Rendered {total_frames} frames ✓")
                 
         except Exception as e:
             # Radar is optional, continue without it
-            progress(0.95, f"Radar skipped: {str(e)[:50]}")
+            progress(0.95, f"Radar skipped: {str(e)[:40]}")
         
         # Complete!
         progress(1.0, "Analysis complete!")
