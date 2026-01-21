@@ -1,41 +1,42 @@
 """
 FragAudit Theme Configuration
-Gaming-inspired dark theme with CS2 colors
+GitHub-inspired dark theme
 """
 
-# Color Palette - CS2 Inspired
+# Color Palette - GitHub Dark Mode
 COLORS = {
-    # Base
-    "bg_dark": "#0d1117",
-    "bg_medium": "#161b22", 
-    "bg_light": "#21262d",
-    "bg_hover": "#30363d",
+    # Base (GitHub dark default)
+    "bg_dark": "#0d1117",          # canvas default
+    "bg_medium": "#161b22",        # canvas subtle
+    "bg_light": "#21262d",         # canvas inset
+    "bg_hover": "#30363d",         # neutral muted
     
-    # Accent
-    "accent_blue": "#4A90D9",      # CT Blue
-    "accent_orange": "#D9A441",    # T Orange
-    "accent_green": "#3fb950",     # Success
-    "accent_red": "#f85149",       # Error/High severity
-    "accent_yellow": "#d29922",    # Warning/Medium severity
-    "accent_cyan": "#4ecdc4",      # Primary action
+    # Accent (GitHub colors)
+    "accent_blue": "#58a6ff",      # accent emphasis
+    "accent_green": "#3fb950",     # success emphasis
+    "accent_red": "#f85149",       # danger emphasis
+    "accent_yellow": "#d29922",    # warning emphasis
+    "accent_purple": "#a371f7",    # done emphasis
+    "accent_cyan": "#58a6ff",      # primary (use blue as main)
+    "accent_orange": "#d29922",    # attention
     
     # Text
-    "text_primary": "#f0f6fc",
-    "text_secondary": "#8b949e",
-    "text_muted": "#6e7681",
+    "text_primary": "#f0f6fc",     # fg default
+    "text_secondary": "#8b949e",   # fg muted  
+    "text_muted": "#6e7681",       # fg subtle
     
     # Borders
-    "border": "#30363d",
-    "border_focus": "#4A90D9",
+    "border": "#30363d",           # border default
+    "border_focus": "#58a6ff",     # accent emphasis
     
     # Rating colors
-    "rating_high": "#3fb950",      # > 1.1
-    "rating_mid": "#d29922",       # 0.9 - 1.1
-    "rating_low": "#f85149",       # < 0.9
+    "rating_high": "#3fb950",      # > 1.1 (green)
+    "rating_mid": "#d29922",       # 0.9 - 1.1 (yellow)
+    "rating_low": "#f85149",       # < 0.9 (red)
     
-    # Team colors
-    "team_ct": "#4A90D9",
-    "team_t": "#D9A441",
+    # Team colors (CS2)
+    "team_ct": "#58a6ff",          # CT Blue
+    "team_t": "#d29922",           # T Orange/Gold
 }
 
 # Fonts
@@ -50,52 +51,61 @@ FONTS = {
     "mono_small": ("Consolas", 10),
 }
 
-# Widget Styling
+# Widget Styling - GitHub style
 BUTTON = {
-    "corner_radius": 8,
+    "corner_radius": 6,
     "border_width": 1,
-    "fg_color": COLORS["accent_cyan"],
-    "hover_color": "#3db8b0",
-    "text_color": COLORS["bg_dark"],
-    "border_color": COLORS["accent_cyan"],
+    "fg_color": "#238636",         # green button
+    "hover_color": "#2ea043",      # green hover
+    "text_color": "#ffffff",
+    "border_color": "#238636",     # same as fg_color
 }
 
 BUTTON_SECONDARY = {
-    "corner_radius": 8,
+    "corner_radius": 6,
     "border_width": 1,
-    "fg_color": "transparent",
-    "hover_color": COLORS["bg_hover"],
-    "text_color": COLORS["text_primary"],
-    "border_color": COLORS["border"],
+    "fg_color": "#21262d",
+    "hover_color": "#30363d",
+    "text_color": "#c9d1d9",
+    "border_color": "#30363d",
+}
+
+BUTTON_PRIMARY = {
+    "corner_radius": 6,
+    "border_width": 0,
+    "fg_color": "#238636",
+    "hover_color": "#2ea043",
+    "text_color": "#ffffff",
 }
 
 ENTRY = {
-    "corner_radius": 8,
+    "corner_radius": 6,
     "border_width": 1,
-    "fg_color": COLORS["bg_light"],
-    "border_color": COLORS["border"],
-    "text_color": COLORS["text_primary"],
-    "placeholder_text_color": COLORS["text_muted"],
+    "fg_color": "#0d1117",
+    "border_color": "#30363d",
+    "text_color": "#c9d1d9",
+    "placeholder_text_color": "#6e7681",
 }
 
 FRAME = {
-    "corner_radius": 12,
-    "fg_color": COLORS["bg_medium"],
+    "corner_radius": 6,
+    "fg_color": "#161b22",
     "border_width": 1,
-    "border_color": COLORS["border"],
+    "border_color": "#30363d",
 }
 
 CARD = {
-    "corner_radius": 10,
-    "fg_color": COLORS["bg_light"],
-    "border_width": 0,
+    "corner_radius": 6,
+    "fg_color": "#161b22",
+    "border_width": 1,
+    "border_color": "#30363d",
 }
 
 # Severity colors for mistake cards
 SEVERITY_COLORS = {
-    "high": COLORS["accent_red"],
-    "medium": COLORS["accent_yellow"],
-    "low": COLORS["accent_blue"],
+    "high": "#f85149",     # red
+    "medium": "#d29922",   # yellow
+    "low": "#58a6ff",      # blue
 }
 
 # Layout
