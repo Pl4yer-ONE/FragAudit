@@ -11,6 +11,7 @@ Shows player movements, bomb, and team positions over time.
 
 from .extractor import extract_ticks, TickFrame, PlayerFrame, SmokeFrame, FlashFrame, KillFrame, GrenadeFrame, get_round_boundaries
 from .renderer import RadarRenderer
+from .fast_renderer import FastRadarRenderer
 from .video import encode_video, encode_gif, check_ffmpeg
 
 __all__ = [
@@ -23,7 +24,9 @@ __all__ = [
     'GrenadeFrame',
     'get_round_boundaries',
     'RadarRenderer',
+    'FastRadarRenderer',
     'encode_video',
     'encode_gif',
     'check_ffmpeg'
 ]
+
